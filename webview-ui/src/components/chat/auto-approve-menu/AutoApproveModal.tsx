@@ -77,7 +77,7 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 					{t("auto_approve.modal_desc")}{" "}
 					<a
 						className="text-link hover:text-link-hover"
-						href="https://docs.cline.bot/features/auto-approve#auto-approve"
+						href="https://github.com/mouseos/gllm-code"
 						rel="noopener"
 						style={{ fontSize: "inherit" }}
 						target="_blank">

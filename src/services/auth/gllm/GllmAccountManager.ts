@@ -51,8 +51,29 @@ const OAUTH_TIMEOUT_MS = 5 * 60 * 1000
 // ─── API Endpoints ───────────────────────────────────────────────────────────
 
 const LOAD_CODE_ASSIST_URL = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
+const FETCH_AVAILABLE_MODELS_URL = "https://cloudcode-pa.googleapis.com/v1internal:fetchAvailableModels"
+const GEMINI_LIST_MODELS_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+const RETRIEVE_USER_QUOTA_URL = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota"
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
+const DYNAMIC_MODELS_REFRESH_INTERVAL_MS = 5 * 60 * 1000
+const GEMINI_MODEL_PREFERENCE = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+const GEMINI_CLI_MODEL_PREFERENCE = [
+	"gemini-3.1-pro-preview",
+	"gemini-3-pro-preview",
+	"gemini-2.5-pro",
+	"gemini-3-flash-preview",
+	"gemini-3.1-flash-lite-preview",
+	"gemini-2.5-flash",
+	"gemini-2.5-flash-lite",
+]
+const ANTIGRAVITY_MODEL_PREFERENCE = [
+	"gemini-3-pro-high",
+	"gemini-3-pro-low",
+	"gemini-3-flash",
+	"gemini-2.5-pro",
+	"gemini-2.5-flash",
+]
 
 // ─── GllmAccountManager ──────────────────────────────────────────────────────
 
@@ -60,6 +81,8 @@ export class GllmAccountManager {
 	private static instance: GllmAccountManager | null = null
 	private tokenCache = new Map<string, { token: string; expiresAt: number }>()
 	private accountUpdateListeners = new Set<() => void>()
+	private dynamicModelRefreshAt = new Map<string, number>()
+	private dynamicModelRefreshPromises = new Map<string, Promise<string[]>>()
 
 	static getInstance(): GllmAccountManager {
 		if (!GllmAccountManager.instance) {
@@ -88,8 +111,23 @@ export class GllmAccountManager {
 
 	private async saveAccounts(accounts: GllmAccount[]): Promise<void> {
 		const stateManager = StateManager.get()
-		await stateManager.setGlobalState("gllmAccounts", accounts)
+		stateManager.setGlobalState("gllmAccounts", accounts)
+		await stateManager.flushPendingState()
 		this.notifyListeners()
+	}
+
+	getAccountsByPriority(provider?: GllmProviderType): GllmAccount[] {
+		const accounts = this.getAccounts()
+		const filtered = provider ? accounts.filter((account) => account.provider === provider) : accounts
+		const mainIndex = filtered.findIndex((account) => account.isMain)
+		if (mainIndex <= 0) {
+			return filtered
+		}
+
+		const prioritized = [...filtered]
+		const [main] = prioritized.splice(mainIndex, 1)
+		prioritized.unshift(main)
+		return prioritized
 	}
 
 	private getTokens(): Record<string, GllmAccountToken> {
@@ -105,7 +143,8 @@ export class GllmAccountManager {
 
 	private async saveTokens(tokens: Record<string, GllmAccountToken>): Promise<void> {
 		const stateManager = StateManager.get()
-		await stateManager.setSecret("gllmAccountTokens", JSON.stringify(tokens))
+		stateManager.setSecret("gllmAccountTokens", JSON.stringify(tokens))
+		await stateManager.flushPendingState()
 	}
 
 	getTokenForAccount(accountId: string): GllmAccountToken | undefined {
@@ -184,6 +223,23 @@ export class GllmAccountManager {
 		}
 	}
 
+	private async loadProjectId(account: GllmAccount, accessToken?: string): Promise<string> {
+		const config = PROVIDER_OAUTH[account.provider]
+		if (!config) throw new Error(`No OAuth config for provider: ${account.provider}`)
+		const token = accessToken ?? (await this.getAccessToken(account.id))
+
+		const res = await fetch(LOAD_CODE_ASSIST_URL, {
+			method: "POST",
+			headers: getProjectHeaders(account.provider, token),
+			body: JSON.stringify({ metadata: { ideType: config.ideType } }),
+		})
+
+		if (!res.ok) throw new Error(`loadCodeAssist failed: ${res.status}`)
+		const data = (await res.json()) as { cloudaicompanionProject?: string }
+		if (!data.cloudaicompanionProject) throw new Error(`No project ID returned for account: ${account.id}`)
+		return data.cloudaicompanionProject
+	}
+
 	// ─── Project ID ──────────────────────────────────────────────────────────
 
 	async getProjectId(accountId: string): Promise<string> {
@@ -193,33 +249,107 @@ export class GllmAccountManager {
 
 		if (account.projectId) return account.projectId
 
+		return this.refreshProjectId(accountId)
+	}
+
+	async refreshProjectId(accountId: string, accessToken?: string): Promise<string> {
+		const accounts = this.getAccounts()
+		const account = accounts.find((a) => a.id === accountId)
+		if (!account) throw new Error(`Account not found: ${accountId}`)
 		if (account.provider === "gemini") throw new Error("Gemini API accounts don't have a project ID")
 
-		const config = PROVIDER_OAUTH[account.provider]
-		if (!config) throw new Error(`No OAuth config for provider: ${account.provider}`)
-		const token = await this.getAccessToken(accountId)
-
-		const res = await fetch(LOAD_CODE_ASSIST_URL, {
-			method: "POST",
-			headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-			body: JSON.stringify({ metadata: { ideType: config.ideType } }),
-		})
-
-		if (!res.ok) throw new Error(`loadCodeAssist failed: ${res.status}`)
-		const data = (await res.json()) as { cloudaicompanionProject?: string }
-		if (!data.cloudaicompanionProject) throw new Error(`No project ID returned for account: ${accountId}`)
-
-		// Cache in account metadata
-		const updated = accounts.map((a) => (a.id === accountId ? { ...a, projectId: data.cloudaicompanionProject } : a))
+		const projectId = await this.loadProjectId(account, accessToken)
+		const updated = accounts.map((existingAccount) =>
+			existingAccount.id === accountId ? { ...existingAccount, projectId } : existingAccount,
+		)
 		await this.saveAccounts(updated)
+		return projectId
+	}
 
-		return data.cloudaicompanionProject!
+	async refreshDynamicModelMetadata(): Promise<void> {
+		const accounts = this.getAccounts().filter(
+			(account) => account.provider === "antigravity" || account.provider === "gemini" || account.provider === "gemini-cli",
+		)
+		await Promise.allSettled(accounts.map((account) => this.refreshAvailableModels(account.id)))
+	}
+
+	async refreshAvailableModels(accountId: string, accessToken?: string, force = false): Promise<string[]> {
+		const accounts = this.getAccounts()
+		const account = accounts.find((candidate) => candidate.id === accountId)
+		if (!account) {
+			throw new Error(`Account not found: ${accountId}`)
+		}
+		if (account.provider !== "antigravity" && account.provider !== "gemini" && account.provider !== "gemini-cli") {
+			return account.availableModels ?? []
+		}
+
+		const lastRefreshAt = this.dynamicModelRefreshAt.get(accountId) ?? 0
+		if (!force && lastRefreshAt > Date.now() - DYNAMIC_MODELS_REFRESH_INTERVAL_MS) {
+			return account.availableModels ?? []
+		}
+
+		const inFlight = this.dynamicModelRefreshPromises.get(accountId)
+		if (inFlight) {
+			return inFlight
+		}
+
+		const refreshPromise = this.loadAvailableModels(account, accessToken)
+			.then(async (availableModels) => {
+				this.dynamicModelRefreshAt.set(accountId, Date.now())
+
+				const latestAccounts = this.getAccounts()
+				const latestAccount = latestAccounts.find((candidate) => candidate.id === accountId)
+				if (!latestAccount) {
+					return availableModels
+				}
+
+				const nextModel = pickBestAvailableModel(latestAccount.provider, latestAccount.model, availableModels)
+				const hasChanged =
+					!sameStringArray(latestAccount.availableModels, availableModels) || latestAccount.model !== nextModel
+
+				if (hasChanged) {
+					const updatedAccounts = latestAccounts.map((candidate) =>
+						candidate.id === accountId ? { ...candidate, availableModels, model: nextModel } : candidate,
+					)
+					await this.saveAccounts(updatedAccounts)
+				}
+
+				return availableModels
+			})
+			.finally(() => {
+				this.dynamicModelRefreshPromises.delete(accountId)
+			})
+
+		this.dynamicModelRefreshPromises.set(accountId, refreshPromise)
+		return refreshPromise
+	}
+
+	private async loadAvailableModels(account: GllmAccount, accessToken?: string): Promise<string[]> {
+		if (account.provider === "gemini") {
+			if (!account.apiKey) {
+				return []
+			}
+			const models = await loadGeminiApiModelsRequest(account.apiKey)
+			return orderModels(models, GEMINI_MODEL_PREFERENCE)
+		}
+
+		if (account.provider === "gemini-cli") {
+			const token = accessToken ?? (await this.getAccessToken(account.id))
+			const projectId = account.projectId ?? (await this.refreshProjectId(account.id, token))
+			const models = await loadCodeAssistQuotaModelsRequest(projectId, token)
+			return orderModels(models, GEMINI_CLI_MODEL_PREFERENCE)
+		}
+
+		const token = accessToken ?? (await this.getAccessToken(account.id))
+		const projectId = account.projectId ?? (await this.refreshProjectId(account.id, token))
+		const models = await loadAvailableModelsRequest(projectId, token)
+		return orderModels(Object.keys(models), ANTIGRAVITY_MODEL_PREFERENCE)
 	}
 
 	// ─── Primary Account (first in list) ─────────────────────────────────────
 
 	getPrimaryAccount(): GllmAccount | undefined {
-		const accounts = this.getAccounts()
+		const accounts = this.getAccountsByPriority()
 		return accounts.length > 0 ? accounts[0] : undefined
 	}
 
@@ -229,7 +359,26 @@ export class GllmAccountManager {
 
 	async setMainAccount(accountId: string): Promise<void> {
 		const accounts = this.getAccounts()
-		const updated = accounts.map((a) => ({ ...a, isMain: a.id === accountId }))
+		const currentIndex = accounts.findIndex((account) => account.id === accountId)
+		if (currentIndex === -1) {
+			throw new Error(`Account not found: ${accountId}`)
+		}
+
+		const reordered = [...accounts]
+		const [selected] = reordered.splice(currentIndex, 1)
+		reordered.unshift(selected)
+		const updated = reordered.map((account, index) => ({ ...account, isMain: index === 0 }))
+		await this.saveAccounts(updated)
+	}
+
+	async reorderAccounts(accountIds: string[]): Promise<void> {
+		const accounts = this.getAccounts()
+		const accountMap = new Map(accounts.map((account) => [account.id, account]))
+		const reordered = accountIds
+			.map((accountId) => accountMap.get(accountId))
+			.filter((account): account is GllmAccount => !!account)
+		const remaining = accounts.filter((account) => !accountIds.includes(account.id))
+		const updated = [...reordered, ...remaining].map((account, index) => ({ ...account, isMain: index === 0 }))
 		await this.saveAccounts(updated)
 	}
 
@@ -259,6 +408,15 @@ export class GllmAccountManager {
 		const accounts = this.getAccounts()
 		const updated = accounts.map((a) => (a.id === accountId ? { ...a, apiKey } : a))
 		await this.saveAccounts(updated)
+		try {
+			await this.refreshAvailableModels(accountId, undefined, true)
+		} catch (error) {
+			Logger.warn(
+				`[GllmAccountManager] Failed to fetch Gemini API models for ${accountId}: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			)
+		}
 	}
 
 	private async createApiKeyAccount(): Promise<void> {
@@ -371,7 +529,7 @@ export class GllmAccountManager {
 		const id = `${provider}-${randomUUID().slice(0, 8)}`
 		const isMain = accounts.length === 0 || !accounts.some((a) => a.isMain)
 
-		const defaultModel = provider === "gemini-cli" ? "gemini-3.1-pro-preview" : "gemini-3-pro-preview"
+		const defaultModel = provider === "gemini-cli" ? "gemini-3.1-pro-preview" : "gemini-3-pro-high"
 
 		const newAccount: GllmAccount = {
 			id,
@@ -397,6 +555,18 @@ export class GllmAccountManager {
 		await this.saveTokens(storedTokens)
 
 		this.tokenCache.set(id, { token: tokens.access_token, expiresAt: Date.now() + tokens.expires_in * 1000 })
+
+		if (provider === "antigravity") {
+			try {
+				await this.refreshAvailableModels(id, tokens.access_token, true)
+			} catch (error) {
+				Logger.warn(
+					`[GllmAccountManager] Failed to fetch Antigravity models for ${id}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			}
+		}
 	}
 
 	// ─── Import from ~/.gemini/oauth_creds.json ──────────────────────────────
@@ -492,4 +662,167 @@ export class GllmAccountManager {
 
 		throw new Error("No available OAuth callback port")
 	}
+}
+
+function getProjectHeaders(provider: GllmProviderType, token: string): Record<string, string> {
+	const headers: Record<string, string> = {
+		"Content-Type": "application/json",
+		Authorization: `Bearer ${token}`,
+	}
+
+	if (provider === "antigravity") {
+		headers["User-Agent"] = getAntigravityUserAgent()
+	}
+
+	return headers
+}
+
+async function loadAvailableModelsRequest(
+	projectId: string,
+	accessToken: string,
+): Promise<Record<string, { quotaInfo?: { remainingFraction?: number; resetTime?: string } }>> {
+	const response = await fetch(FETCH_AVAILABLE_MODELS_URL, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			Authorization: `Bearer ${accessToken}`,
+			"User-Agent": getAntigravityUserAgent(),
+		},
+		body: JSON.stringify({ project: projectId }),
+	})
+
+	if (!response.ok) {
+		const body = await response.text()
+		throw new Error(`fetchAvailableModels failed: ${response.status} ${body}`)
+	}
+
+	const data = (await response.json()) as {
+		models?: Record<string, { quotaInfo?: { remainingFraction?: number; resetTime?: string } }>
+	}
+	return data.models ?? {}
+}
+
+function pickBestAvailableModel(provider: GllmProviderType, currentModel: string | undefined, availableModels: string[]): string {
+	if (currentModel && availableModels.includes(currentModel)) {
+		return currentModel
+	}
+
+	const preferredModels =
+		provider === "gemini"
+			? GEMINI_MODEL_PREFERENCE
+			: provider === "gemini-cli"
+				? GEMINI_CLI_MODEL_PREFERENCE
+				: ANTIGRAVITY_MODEL_PREFERENCE
+	for (const preferredModel of preferredModels) {
+		if (availableModels.includes(preferredModel)) {
+			return preferredModel
+		}
+	}
+
+	return (
+		availableModels[0] ??
+		currentModel ??
+		(provider === "gemini" ? "gemini-2.5-pro" : provider === "gemini-cli" ? "gemini-3.1-pro-preview" : "gemini-3-pro-high")
+	)
+}
+
+function sameStringArray(left?: string[], right?: string[]): boolean {
+	if ((left?.length ?? 0) !== (right?.length ?? 0)) {
+		return false
+	}
+	return (left ?? []).every((value, index) => value === right?.[index])
+}
+
+function orderModels(models: string[], preference: string[]): string[] {
+	const seen = new Set<string>()
+	const ordered: string[] = []
+
+	for (const model of preference) {
+		if (models.includes(model) && !seen.has(model)) {
+			ordered.push(model)
+			seen.add(model)
+		}
+	}
+
+	for (const model of models) {
+		if (!seen.has(model)) {
+			ordered.push(model)
+			seen.add(model)
+		}
+	}
+
+	return ordered
+}
+
+async function loadGeminiApiModelsRequest(apiKey: string): Promise<string[]> {
+	const models: string[] = []
+	let pageToken: string | undefined
+
+	while (true) {
+		const params = new URLSearchParams({ key: apiKey, pageSize: "1000" })
+		if (pageToken) {
+			params.set("pageToken", pageToken)
+		}
+
+		const response = await fetch(`${GEMINI_LIST_MODELS_URL}?${params.toString()}`)
+		if (!response.ok) {
+			const body = await response.text()
+			throw new Error(`Gemini models.list failed: ${response.status} ${body}`)
+		}
+
+		const data = (await response.json()) as {
+			models?: Array<{
+				name?: string
+				baseModelId?: string
+				supportedGenerationMethods?: string[]
+			}>
+			nextPageToken?: string
+		}
+
+		for (const model of data.models ?? []) {
+			const supportsGenerateContent = model.supportedGenerationMethods?.includes("generateContent")
+			const modelId = model.baseModelId ?? model.name?.replace(/^models\//, "")
+			if (!supportsGenerateContent || !modelId || !modelId.startsWith("gemini-")) {
+				continue
+			}
+			models.push(modelId)
+		}
+
+		if (!data.nextPageToken) {
+			break
+		}
+		pageToken = data.nextPageToken
+	}
+
+	return [...new Set(models)]
+}
+
+async function loadCodeAssistQuotaModelsRequest(projectId: string, accessToken: string): Promise<string[]> {
+	const response = await fetch(RETRIEVE_USER_QUOTA_URL, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			Authorization: `Bearer ${accessToken}`,
+		},
+		body: JSON.stringify({ project: projectId }),
+	})
+
+	if (!response.ok) {
+		const body = await response.text()
+		throw new Error(`retrieveUserQuota failed: ${response.status} ${body}`)
+	}
+
+	const data = (await response.json()) as {
+		buckets?: Array<{
+			modelId?: string
+		}>
+	}
+
+	return [...new Set((data.buckets ?? []).map((bucket) => bucket.modelId).filter((modelId): modelId is string => !!modelId))]
+}
+
+function getAntigravityUserAgent(): string {
+	const version = "1.15.8"
+	const platform = process.platform === "darwin" ? "macos" : process.platform
+	return `antigravity/${version} ${platform}/${process.arch}`
 }

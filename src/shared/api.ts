@@ -64,6 +64,7 @@ export interface GllmAccount {
 	model: string
 	isMain: boolean
 	apiKey?: string
+	availableModels?: string[]
 }
 
 export interface GllmAccountToken {
@@ -5009,9 +5010,9 @@ export const geminiCliModels = {
 // ─── Antigravity (Daily Cloud Code) ─────────────────────────────────────────
 
 export type AntigravityModelId = keyof typeof antigravityModels
-export const antigravityDefaultModelId: AntigravityModelId = "gemini-3-pro-preview"
+export const antigravityDefaultModelId: AntigravityModelId = "gemini-3-pro-high"
 export const antigravityModels = {
-	"gemini-3-pro-preview": {
+	"gemini-3-pro-high": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
@@ -5019,7 +5020,15 @@ export const antigravityModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"gemini-3-flash-preview": {
+	"gemini-3-pro-low": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-3-flash": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,

@@ -97,7 +97,7 @@ export class WebSearchToolHandler implements IFullyManagedTool {
 				)
 			} else {
 				showNotificationForApproval(
-					`Cline wants to search for: ${query}`,
+					`GLLM Code wants to search for: ${query}`,
 					config.autoApprovalSettings.enableNotifications,
 				)
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "tool")

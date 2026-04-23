@@ -12,7 +12,7 @@
 		"vscode": "^1.84.0"
 	},
 	"author": {
-		"name": "Cline Bot Inc."
+		"name": "GLLM Code"
 	},
 	"license": "Apache-2.0",
 	"publisher": "mouseos",
@@ -20,7 +20,7 @@
 		"type": "git",
 		"url": "https://github.com/mouseos/gllm-code"
 	},
-	"homepage": "https://cline.bot",
+	"homepage": "https://github.com/mouseos/gllm-code",
 	"categories": [
 		"AI",
 		"Chat",
@@ -30,7 +30,6 @@
 		"Testing"
 	],
 	"keywords": [
-		"cline",
 		"claude",
 		"dev",
 		"mcp",
@@ -41,7 +40,9 @@
 		"chatgpt",
 		"sonnet",
 		"ai",
-		"llama"
+		"llama",
+		"gemini",
+		"gllm"
 	],
 	"activationEvents": [
 		"onLanguage",
@@ -51,33 +52,24 @@
 	],
 	"main": "./dist/extension.js",
 	"contributes": {
-		"icons": {
-			"cline-icon": {
-				"description": "cline",
-				"default": {
-					"fontPath": "assets/icons/cline-bot.woff",
-					"fontCharacter": "\\e900"
-				}
-			}
-		},
 		"walkthroughs": [
 			{
-				"id": "ClineWalkthrough",
-				"title": "Meet Cline, your new coding partner",
-				"description": "Cline codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
+				"id": "GllmCodeWalkthrough",
+				"title": "Meet GLLM Code, your new coding partner",
+				"description": "GLLM Code codes like a developer because it thinks like one. Here are 5 ways to put it to work:",
 				"steps": [
 					{
 						"id": "welcome",
 						"title": "Start with a Goal, Not Just a Prompt",
-						"description": "Tell Cline what you want to achieve. It plans, asks, and then codes, like a true partner.",
+						"description": "Tell GLLM Code what you want to achieve. It plans, asks, and then codes, like a true partner.",
 						"media": {
 							"markdown": "walkthrough/step1.md"
 						}
 					},
 					{
 						"id": "learn",
-						"title": "Let Cline Learn Your Codebase",
-						"description": "Point Cline to your project. It builds understanding to make smart, context-aware changes.",
+						"title": "Let GLLM Code Learn Your Codebase",
+						"description": "Point GLLM Code to your project. It builds understanding to make smart, context-aware changes.",
 						"media": {
 							"markdown": "walkthrough/step2.md"
 						}
@@ -85,7 +77,7 @@
 					{
 						"id": "advanced-features",
 						"title": "Always Use the Best AI Models",
-						"description": "Cline empowers you with State-of-the-Art AI, connecting to top models (Anthropic, Gemini, OpenAI & more).",
+						"description": "GLLM Code empowers you with State-of-the-Art AI, connecting to top models (Anthropic, Gemini, OpenAI & more).",
 						"media": {
 							"markdown": "walkthrough/step3.md"
 						}
@@ -101,7 +93,7 @@
 					{
 						"id": "getting-started",
 						"title": "You're Always in Control",
-						"description": "Review Cline's plans and diffs. Approve changes before they happen. No surprises.",
+						"description": "Review GLLM Code's plans and diffs. Approve changes before they happen. No surprises.",
 						"media": {
 							"markdown": "walkthrough/step5.md"
 						},
@@ -116,7 +108,7 @@
 			"activitybar": [
 				{
 					"id": "gllm-code-ActivityBar",
-					"title": "Cline",
+					"title": "GLLM Code",
 					"icon": "assets/icons/icon.svg"
 				}
 			]
@@ -155,85 +147,84 @@
 			{
 				"command": "gllm-code.dev.createTestTasks",
 				"title": "Create Test Tasks",
-				"category": "Cline",
+				"category": "GLLM Code",
 				"when": "gllm-code.isDevMode"
 			},
 			{
 				"command": "gllm-code.dev.expireMcpOAuthTokens",
 				"title": "Expire MCP OAuth Tokens (for testing)",
-				"category": "Cline",
+				"category": "GLLM Code",
 				"when": "gllm-code.isDevMode"
 			},
 			{
 				"command": "gllm-code.addToChat",
-				"title": "Add to Cline",
-				"category": "Cline"
+				"title": "Add to GLLM Code",
+				"category": "GLLM Code"
 			},
 			{
 				"command": "gllm-code.focusChatInput",
 				"title": "Jump to Chat Input",
-				"category": "Cline"
+				"category": "GLLM Code"
 			},
 			{
 				"command": "gllm-code.generateGitCommitMessage",
-				"title": "Generate Commit Message with Cline",
-				"category": "Cline",
-				"icon": "$(cline-icon)"
+				"title": "Generate Commit Message with GLLM Code",
+				"category": "GLLM Code"
 			},
 			{
 				"command": "gllm-code.abortGitCommitMessage",
-				"title": "Generate Commit Message with Cline - Stop",
-				"category": "Cline",
+				"title": "Generate Commit Message with GLLM Code - Stop",
+				"category": "GLLM Code",
 				"icon": "$(debug-stop)"
 			},
 			{
 				"command": "gllm-code.explainCode",
-				"title": "Explain with Cline",
-				"category": "Cline"
+				"title": "Explain with GLLM Code",
+				"category": "GLLM Code"
 			},
 			{
 				"command": "gllm-code.improveCode",
-				"title": "Improve with Cline",
-				"category": "Cline"
+				"title": "Improve with GLLM Code",
+				"category": "GLLM Code"
 			},
 			{
 				"command": "gllm-code.jupyterGenerateCell",
-				"title": "Generate Jupyter Cell with Cline",
-				"category": "Cline",
+				"title": "Generate Jupyter Cell with GLLM Code",
+				"category": "GLLM Code",
 				"icon": "$(sparkle)"
 			},
 			{
 				"command": "gllm-code.jupyterExplainCell",
-				"title": "Explain Jupyter Cell with Cline",
-				"category": "Cline",
+				"title": "Explain Jupyter Cell with GLLM Code",
+				"category": "GLLM Code",
 				"icon": "$(question)"
 			},
 			{
 				"command": "gllm-code.jupyterImproveCell",
-				"title": "Improve Jupyter Cell with Cline",
-				"category": "Cline",
+				"title": "Improve Jupyter Cell with GLLM Code",
+				"category": "GLLM Code",
 				"icon": "$(lightbulb)"
 			},
 			{
 				"command": "gllm-code.openWalkthrough",
 				"title": "Open Walkthrough",
-				"category": "Cline"
+				"category": "GLLM Code"
 			},
 			{
 				"command": "gllm-code.reconstructTaskHistory",
 				"title": "Reconstruct Task History",
-				"category": "Cline"
+				"category": "GLLM Code"
 			},
 			{
 				"command": "gllm-code.reviewComment.reply",
 				"title": "Reply",
-				"category": "Cline",
+				"category": "GLLM Code",
 				"enablement": "!commentIsEmpty"
 			},
 			{
 				"command": "gllm-code.reviewComment.addToChat",
-				"title": "Add to Cline Chat",
-				"category": "Cline",
+				"title": "Add to GLLM Code Chat",
+				"category": "GLLM Code",
 				"icon": "$(link-external)"
 			}
 		],
@@ -355,7 +346,7 @@
 			]
 		},
 		"configuration": {
-			"title": "Cline",
+			"title": "GLLM Code",
 			"properties": {}
 		}
 	},

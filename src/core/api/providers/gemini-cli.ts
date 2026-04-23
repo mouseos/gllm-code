@@ -4,7 +4,7 @@ import { GeminiCliModelId, geminiCliDefaultModelId, geminiCliModels, ModelInfo }
 import { GllmAccountManager } from "@/services/auth/gllm/GllmAccountManager"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
-import { ApiHandler, ApiHandlerModel, CommonApiHandlerOptions } from "../"
+import { ApiHandler, ApiHandlerModel, ApiRequestUsageContext, CommonApiHandlerOptions } from "../"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
@@ -13,6 +13,7 @@ const CODE_ASSIST_VERSION = "v1internal"
 
 interface GeminiCliHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
+	accountId?: string
 }
 
 interface CodeAssistResponse {
@@ -35,6 +36,7 @@ interface CodeAssistResponse {
 export class GeminiCliHandler implements ApiHandler {
 	private options: GeminiCliHandlerOptions
 	private accountManager: GllmAccountManager
+	private currentUsageContext?: ApiRequestUsageContext
 
 	constructor(options: GeminiCliHandlerOptions) {
 		this.options = options
@@ -43,13 +45,21 @@ export class GeminiCliHandler implements ApiHandler {
 
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: GoogleTool[]): ApiStream {
 		const { id: modelId, info } = this.getModel()
-		const mainAccount = this.accountManager.getMainAccount()
-		if (!mainAccount || mainAccount.provider !== "gemini-cli") {
-			throw new Error("No Gemini CLI account configured as main. Please add a Gemini CLI account in settings.")
+		const account = this.options.accountId
+			? this.accountManager.getAccounts().find((candidate) => candidate.id === this.options.accountId)
+			: this.accountManager.getPrimaryAccount()
+		if (!account) {
+			throw new Error("No account configured. Please add an account in settings.")
+		}
+		this.currentUsageContext = {
+			providerId: "gemini-cli",
+			modelId,
+			accountId: account.id,
+			accountLabel: account.label || account.email || account.id,
 		}
 
-		const token = await this.accountManager.getAccessToken(mainAccount.id)
-		const projectId = await this.accountManager.getProjectId(mainAccount.id)
+		const token = await this.accountManager.getAccessToken(account.id)
+		const projectId = await this.accountManager.getProjectId(account.id)
 		const contents: Content[] = messages.map(convertAnthropicMessageToGemini)
 
 		const requestBody: Record<string, unknown> = {
@@ -155,10 +165,13 @@ export class GeminiCliHandler implements ApiHandler {
 	}
 
 	getModel(): ApiHandlerModel {
-		const mainAccount = this.accountManager.getMainAccount()
-		const modelId = (mainAccount?.model ?? this.options.apiModelId ?? geminiCliDefaultModelId) as GeminiCliModelId
+		const modelId = (this.options.apiModelId ?? geminiCliDefaultModelId) as GeminiCliModelId
 		const info = (geminiCliModels[modelId as keyof typeof geminiCliModels] ??
 			geminiCliModels[geminiCliDefaultModelId]) as ModelInfo
 		return { id: modelId, info }
+	}
+
+	getRequestUsageContext(): ApiRequestUsageContext | undefined {
+		return this.currentUsageContext
 	}
 }

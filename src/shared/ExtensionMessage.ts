@@ -342,6 +342,10 @@ export interface ClineApiReqInfo {
 	cacheWrites?: number
 	cacheReads?: number
 	cost?: number
+	providerId?: string
+	modelId?: string
+	accountId?: string
+	accountLabel?: string
 	cancelReason?: ClineApiReqCancelReason
 	streamingFailedMessage?: string
 	retryStatus?: {

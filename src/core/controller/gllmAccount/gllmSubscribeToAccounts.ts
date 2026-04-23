@@ -16,6 +16,7 @@ function toProtoAccount(account: GllmAccount): ProtoGllmAccount {
 		model: account.model,
 		isMain: account.isMain,
 		apiKey: account.apiKey,
+		availableModels: account.availableModels ?? [],
 	})
 }
 
@@ -40,4 +41,5 @@ export async function gllmSubscribeToAccounts(
 
 	// Send initial state
 	await sendAccounts()
+	void manager.refreshDynamicModelMetadata()
 }

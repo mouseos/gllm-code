@@ -19,6 +19,7 @@ import { DoubaoHandler } from "./providers/doubao"
 import { FireworksHandler } from "./providers/fireworks"
 import { GeminiHandler } from "./providers/gemini"
 import { GeminiCliHandler } from "./providers/gemini-cli"
+import { GllmAutoHandler } from "./providers/gllm-auto"
 import { GroqHandler } from "./providers/groq"
 import { HicapHandler } from "./providers/hicap"
 import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
@@ -53,10 +54,19 @@ import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 export type CommonApiHandlerOptions = {
 	onRetryAttempt?: ApiConfiguration["onRetryAttempt"]
 }
+
+export interface ApiRequestUsageContext {
+	providerId?: string
+	modelId?: string
+	accountId?: string
+	accountLabel?: string
+}
+
 export interface ApiHandler {
 	createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[], useResponseApi?: boolean): ApiStream
 	getModel(): ApiHandlerModel
 	getApiStreamUsage?(): Promise<ApiStreamUsageChunk | undefined>
+	getRequestUsageContext?(): ApiRequestUsageContext | undefined
 	abort?(): void
 }
 
@@ -493,16 +503,29 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 
 	// Override with primary gllm account if available
 	const gllmAccount = GllmAccountManager.getInstance().getPrimaryAccount()
-	const apiProvider = gllmAccount ? gllmAccount.provider : mode === "plan" ? planModeApiProvider : actModeApiProvider
+	let apiProvider = gllmAccount ? gllmAccount.provider : mode === "plan" ? planModeApiProvider : actModeApiProvider
 	if (gllmAccount) {
+		const resolvedModel = gllmAccount.model
 		if (mode === "plan") {
-			options.planModeApiModelId = gllmAccount.model
+			options.planModeApiModelId = resolvedModel
 		} else {
-			options.actModeApiModelId = gllmAccount.model
+			options.actModeApiModelId = resolvedModel
 		}
+		// Force provider from account, ignore settings
+		apiProvider = gllmAccount.provider
 		if (gllmAccount.provider === "gemini" && gllmAccount.apiKey) {
 			options.geminiApiKey = gllmAccount.apiKey
 		}
+	}
+
+	const selectedModel = mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId
+	if (gllmAccount) {
+		return new GllmAutoHandler({
+			onRetryAttempt: options.onRetryAttempt,
+			apiModelId: selectedModel,
+			thinkingBudgetTokens: mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
+			reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+		})
 	}
 
 	// Validate thinking budget tokens against model's maxTokens to prevent API errors

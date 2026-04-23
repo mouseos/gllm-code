@@ -10,11 +10,12 @@ import {
 } from "@google/genai"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
 import { GEMINI_FLASH_MAX_OUTPUT_TOKENS, isGeminiFlashModel } from "@utils/model-utils"
+import { GllmAccountManager } from "@/services/auth/gllm/GllmAccountManager"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { telemetryService } from "@/services/telemetry"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import { ApiHandler, ApiRequestUsageContext, CommonApiHandlerOptions } from "../"
 import { RetriableError, withRetry } from "../retry"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
@@ -26,6 +27,8 @@ interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 	vertexProjectId?: string
 	vertexRegion?: string
 	geminiApiKey?: string
+	accountId?: string
+	accountLabel?: string
 	geminiBaseUrl?: string
 	thinkingBudgetTokens?: number
 	reasoningEffort?: string
@@ -81,6 +84,7 @@ function getGeminiMaxOutputTokens(modelId: string, modelMaxTokens?: number): num
 export class GeminiHandler implements ApiHandler {
 	private options: GeminiHandlerOptions
 	private client: GoogleGenAI | undefined
+	private currentUsageContext?: ApiRequestUsageContext
 
 	constructor(options: GeminiHandlerOptions) {
 		// Store the options
@@ -146,6 +150,28 @@ export class GeminiHandler implements ApiHandler {
 		maxDelay: 15000,
 	})
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: GoogleTool[]): ApiStream {
+		const account =
+			this.options.accountId || this.options.accountLabel
+				? {
+						id: this.options.accountId,
+						label: this.options.accountLabel,
+					}
+				: (() => {
+						const primaryAccount = GllmAccountManager.getInstance().getPrimaryAccount()
+						if (primaryAccount?.provider !== "gemini") {
+							return undefined
+						}
+						return {
+							id: primaryAccount.id,
+							label: primaryAccount.label || primaryAccount.email || primaryAccount.id,
+						}
+					})()
+		this.currentUsageContext = {
+			providerId: "gemini",
+			modelId: this.getModel().id,
+			accountId: account?.id,
+			accountLabel: account?.label,
+		}
 		const client = this.ensureClient()
 		const { id: modelId, info } = this.getModel()
 		const contents = messages.map(convertAnthropicMessageToGemini)
@@ -384,6 +410,10 @@ export class GeminiHandler implements ApiHandler {
 				Logger.warn("GeminiHandler: ulid not available for telemetry in createMessage.")
 			}
 		}
+	}
+
+	getRequestUsageContext(): ApiRequestUsageContext | undefined {
+		return this.currentUsageContext
 	}
 
 	/**

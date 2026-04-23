@@ -28,6 +28,9 @@ service GllmAccountService {
   // Update API key for a Gemini API account
   rpc gllmUpdateAccountApiKey(GllmUpdateModelRequest) returns (Empty);
 
+  // Reorder accounts by priority
+  rpc gllmReorderAccounts(GllmReorderAccountsRequest) returns (Empty);
+
   // Subscribe to account list updates
   rpc gllmSubscribeToAccounts(EmptyRequest) returns (stream GllmAccountList);
 }
@@ -42,6 +45,7 @@ message GllmAccount {
   string model = 7;
   bool is_main = 8;
   optional string api_key = 9;
+  repeated string available_models = 10;
 }
 
 message GllmAccountList {
@@ -56,4 +60,8 @@ message GllmImportResult {
 message GllmUpdateModelRequest {
   string account_id = 1;
   string model = 2;
+}
+
+message GllmReorderAccountsRequest {
+  repeated string account_ids = 1;
 }

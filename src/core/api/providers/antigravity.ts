@@ -4,13 +4,17 @@ import { AntigravityModelId, antigravityDefaultModelId, antigravityModels, Model
 import { GllmAccountManager } from "@/services/auth/gllm/GllmAccountManager"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
-import { ApiHandler, ApiHandlerModel, CommonApiHandlerOptions } from "../"
+import { ApiHandler, ApiHandlerModel, ApiRequestUsageContext, CommonApiHandlerOptions } from "../"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
 import { ApiStream } from "../transform/stream"
 
-const ANTIGRAVITY_BASE = "https://daily-cloudcode-pa.googleapis.com"
 const CODE_ASSIST_VERSION = "v1internal"
-const ANTIGRAVITY_USER_AGENT = "antigravity/1.20.0 linux/x64"
+const ANTIGRAVITY_BASE_URLS = [
+	"https://daily-cloudcode-pa.googleapis.com",
+	"https://daily-cloudcode-pa.sandbox.googleapis.com",
+	"https://cloudcode-pa.googleapis.com",
+]
+const ANTIGRAVITY_USER_AGENT = getAntigravityUserAgent()
 
 const ANTIGRAVITY_SAFETY_SETTINGS = [
 	{ category: "HARM_CATEGORY_HARASSMENT", threshold: "OFF" },
@@ -22,6 +26,7 @@ const ANTIGRAVITY_SAFETY_SETTINGS = [
 
 interface AntigravityHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
+	accountId?: string
 }
 
 interface AntigravityResponse {
@@ -29,7 +34,11 @@ interface AntigravityResponse {
 		candidates?: Array<{
 			content?: {
 				role: string
-				parts: Array<{ text?: string; functionCall?: { name: string; args: Record<string, unknown> }; thought?: boolean }>
+				parts: Array<{
+					text?: string
+					functionCall?: { id?: string; name: string; args: Record<string, unknown> }
+					thought?: boolean
+				}>
 			}
 			finishReason?: string
 		}>
@@ -44,24 +53,77 @@ interface AntigravityResponse {
 export class AntigravityHandler implements ApiHandler {
 	private options: AntigravityHandlerOptions
 	private accountManager: GllmAccountManager
+	private currentUsageContext?: ApiRequestUsageContext
 
 	constructor(options: AntigravityHandlerOptions) {
 		this.options = options
 		this.accountManager = GllmAccountManager.getInstance()
 	}
 
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: GoogleTool[]): ApiStream {
-		const { id: modelId, info } = this.getModel()
-		const mainAccount = this.accountManager.getMainAccount()
-		if (!mainAccount || mainAccount.provider !== "antigravity") {
-			throw new Error("No Antigravity account configured as main. Please add an Antigravity account in settings.")
+	private async sendRequest(requestBody: Record<string, unknown>, accessToken: string, accountId: string): Promise<Response> {
+		let lastStatus = 0
+		let lastErrorText = ""
+		let refreshedProject = false
+
+		for (const baseUrl of ANTIGRAVITY_BASE_URLS) {
+			const url = `${baseUrl}/${CODE_ASSIST_VERSION}:streamGenerateContent?alt=sse`
+			const response = await fetch(url, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${accessToken}`,
+					"User-Agent": ANTIGRAVITY_USER_AGENT,
+					Accept: "text/event-stream",
+				},
+				body: JSON.stringify(requestBody),
+			})
+
+			if (response.ok) {
+				return response
+			}
+
+			lastStatus = response.status
+			lastErrorText = await response.text()
+
+			if (response.status === 404 && !refreshedProject) {
+				const missingProjectId = extractMissingProjectId(lastErrorText)
+				if (missingProjectId) {
+					const refreshedProjectId = await this.accountManager.refreshProjectId(accountId, accessToken)
+					requestBody.project = refreshedProjectId
+					refreshedProject = true
+					return this.sendRequest(requestBody, accessToken, accountId)
+				}
+			}
+
+			if (![403, 404, 408].includes(response.status) && response.status < 500) {
+				break
+			}
 		}
 
-		const token = await this.accountManager.getAccessToken(mainAccount.id)
-		const projectId = await this.accountManager.getProjectId(mainAccount.id)
+		throw new Error(`Antigravity API error ${lastStatus}: ${lastErrorText}`)
+	}
+
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: GoogleTool[]): ApiStream {
+		const { id: modelId } = this.getModel()
+		const account = this.options.accountId
+			? this.accountManager.getAccounts().find((candidate) => candidate.id === this.options.accountId)
+			: this.accountManager.getPrimaryAccount()
+		if (!account) {
+			throw new Error("No account configured. Please add an account in settings.")
+		}
+		this.currentUsageContext = {
+			providerId: "antigravity",
+			modelId,
+			accountId: account.id,
+			accountLabel: account.label || account.email || account.id,
+		}
+
+		const token = await this.accountManager.getAccessToken(account.id)
+		const projectId = await this.accountManager.getProjectId(account.id)
 		const contents: Content[] = messages.map(convertAnthropicMessageToGemini)
 
 		const sessionId = generateSessionId(contents)
+		const toolDeclarations = tools && tools.length > 0 ? [{ functionDeclarations: tools }] : undefined
 
 		const requestBody: Record<string, unknown> = {
 			model: modelId,
@@ -73,35 +135,21 @@ export class AntigravityHandler implements ApiHandler {
 				contents,
 				sessionId,
 				safetySettings: ANTIGRAVITY_SAFETY_SETTINGS,
-				systemInstruction: systemPrompt ? { parts: [{ text: systemPrompt }] } : undefined,
+				systemInstruction: systemPrompt ? { role: "user", parts: [{ text: systemPrompt }] } : undefined,
 				generationConfig: {
-					maxOutputTokens: info.maxTokens ?? 65536,
+					maxOutputTokens: 64000,
+					stopSequences: ["\n\nHuman:", "[DONE]"],
 				},
-				...(tools && tools.length > 0
+				...(toolDeclarations
 					? {
-							tools: [{ functionDeclarations: tools }],
-							toolConfig: { functionCallingConfig: { mode: "ANY" } },
+							tools: toolDeclarations,
+							toolConfig: { functionCallingConfig: { mode: "VALIDATED" } },
 						}
 					: {}),
 			},
 		}
 
-		const url = `${ANTIGRAVITY_BASE}/${CODE_ASSIST_VERSION}:streamGenerateContent?alt=sse`
-		const response = await fetch(url, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${token}`,
-				"User-Agent": ANTIGRAVITY_USER_AGENT,
-				Accept: "text/event-stream",
-			},
-			body: JSON.stringify(requestBody),
-		})
-
-		if (!response.ok) {
-			const errText = await response.text()
-			throw new Error(`Antigravity API error ${response.status}: ${errText}`)
-		}
+		const response = await this.sendRequest(requestBody, token, account.id)
 
 		const reader = response.body?.getReader()
 		if (!reader) throw new Error("No response body")
@@ -150,7 +198,7 @@ export class AntigravityHandler implements ApiHandler {
 							yield {
 								type: "tool_calls",
 								tool_call: {
-									call_id: `call_${randomUUID().replace(/-/g, "").slice(0, 24)}`,
+									call_id: part.functionCall.id || `call_${randomUUID().replace(/-/g, "").slice(0, 24)}`,
 									function: {
 										name: part.functionCall.name,
 										arguments: part.functionCall.args,
@@ -173,21 +221,65 @@ export class AntigravityHandler implements ApiHandler {
 	}
 
 	getModel(): ApiHandlerModel {
-		const mainAccount = this.accountManager.getMainAccount()
-		const modelId = (mainAccount?.model ?? this.options.apiModelId ?? antigravityDefaultModelId) as AntigravityModelId
+		const modelId = (this.options.apiModelId ?? antigravityDefaultModelId) as AntigravityModelId
 		const info = (antigravityModels[modelId as keyof typeof antigravityModels] ??
 			antigravityModels[antigravityDefaultModelId]) as ModelInfo
 		return { id: modelId, info }
 	}
+
+	getRequestUsageContext(): ApiRequestUsageContext | undefined {
+		return this.currentUsageContext
+	}
 }
 
-function generateSessionId(contents: Content[]): string {
-	const firstUser = contents.find((c) => c.role === "user")
-	const text = firstUser?.parts?.[0]?.text || ""
-	let hash = 0
-	for (let i = 0; i < text.length; i++) {
-		hash = (hash << 5) - hash + text.charCodeAt(i)
-		hash = hash & hash
+function generateSessionId(messages: Content[]): string {
+	const firstUserMsg = messages.find((m) => m.role === "user")
+	const text =
+		firstUserMsg?.parts
+			?.map((p) => (p as any).text)
+			.filter(Boolean)
+			.join("") ?? ""
+	if (!text) {
+		return `-${Math.floor(Math.random() * 9e18).toString()}`
 	}
-	return `-${Math.abs(hash) * 1000000000000}`
+
+	let hash = 0
+	for (let index = 0; index < text.length; index++) {
+		hash = (hash << 5) - hash + text.charCodeAt(index)
+		hash |= 0
+	}
+	return `-${(Math.abs(hash) * 1000000000000).toString()}`
+}
+
+function getAntigravityUserAgent(): string {
+	const version = "1.15.8"
+	const platform = process.platform === "darwin" ? "macos" : process.platform
+	return `antigravity/${version} ${platform}/${process.arch}`
+}
+
+function extractMissingProjectId(errorText: string): string | null {
+	const body = errorText.trim()
+	if (!(body.startsWith("{") || body.startsWith("["))) {
+		return null
+	}
+
+	try {
+		const parsed = JSON.parse(body)
+		const details = parsed?.error?.details
+		if (!Array.isArray(details)) {
+			return null
+		}
+
+		for (const detail of details) {
+			const resourceName = String(detail?.resourceName || "")
+			const match = resourceName.match(/^projects\/([^/]+)$/)
+			if (match?.[1]) {
+				return match[1]
+			}
+		}
+	} catch {
+		return null
+	}
+
+	return null
 }

@@ -8,6 +8,13 @@ interface ApiMetrics {
 	totalCost: number
 }
 
+export interface GllmAccountApiMetrics extends ApiMetrics {
+	accountId: string
+	accountLabel: string
+	providerId?: string
+	modelId?: string
+}
+
 /**
  * Calculates API metrics from an array of ClineMessages.
  *
@@ -96,4 +103,65 @@ export function getLastApiReqTotalTokens(messages: ClineMessage[]): number {
 		}
 	}
 	return 0
+}
+
+export function getApiMetricsByGllmAccount(messages: ClineMessage[]): GllmAccountApiMetrics[] {
+	const byAccount = new Map<string, GllmAccountApiMetrics>()
+
+	messages.forEach((message) => {
+		if (message.type !== "say" || message.say !== "api_req_started" || !message.text) {
+			return
+		}
+
+		try {
+			const parsedData = JSON.parse(message.text)
+			const accountId = parsedData.accountId
+			if (typeof accountId !== "string" || accountId.length === 0) {
+				return
+			}
+
+			const current = byAccount.get(accountId) ?? {
+				accountId,
+				accountLabel:
+					typeof parsedData.accountLabel === "string" && parsedData.accountLabel.length > 0
+						? parsedData.accountLabel
+						: accountId,
+				providerId: typeof parsedData.providerId === "string" ? parsedData.providerId : undefined,
+				modelId: typeof parsedData.modelId === "string" ? parsedData.modelId : undefined,
+				totalTokensIn: 0,
+				totalTokensOut: 0,
+				totalCacheWrites: 0,
+				totalCacheReads: 0,
+				totalCost: 0,
+			}
+
+			if (typeof parsedData.tokensIn === "number") {
+				current.totalTokensIn += parsedData.tokensIn
+			}
+			if (typeof parsedData.tokensOut === "number") {
+				current.totalTokensOut += parsedData.tokensOut
+			}
+			if (typeof parsedData.cacheWrites === "number") {
+				current.totalCacheWrites = (current.totalCacheWrites ?? 0) + parsedData.cacheWrites
+			}
+			if (typeof parsedData.cacheReads === "number") {
+				current.totalCacheReads = (current.totalCacheReads ?? 0) + parsedData.cacheReads
+			}
+			if (typeof parsedData.cost === "number") {
+				current.totalCost += parsedData.cost
+			}
+			if (typeof parsedData.modelId === "string" && parsedData.modelId.length > 0) {
+				current.modelId = parsedData.modelId
+			}
+			if (typeof parsedData.providerId === "string" && parsedData.providerId.length > 0) {
+				current.providerId = parsedData.providerId
+			}
+
+			byAccount.set(accountId, current)
+		} catch {
+			// Ignore JSON parse errors
+		}
+	})
+
+	return Array.from(byAccount.values())
 }

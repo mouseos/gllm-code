@@ -1,5 +1,9 @@
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
-import { GllmUpdateModelRequest, GllmAccount as ProtoGllmAccount } from "@shared/proto/cline/gllm_account"
+import {
+	GllmReorderAccountsRequest,
+	GllmUpdateModelRequest,
+	GllmAccount as ProtoGllmAccount,
+} from "@shared/proto/cline/gllm_account"
 import { VSCodeButton, VSCodeDropdown, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { GllmAccountServiceClient } from "../../../services/grpc-client"
@@ -9,8 +13,19 @@ import Section from "../Section"
 // Constants
 // ---------------------------------------------------------------------------
 
-const GEMINI_MODELS = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+const GEMINI_FALLBACK_MODELS = [
+	"auto pro",
+	"auto flash",
+	"auto",
+	"gemini-2.5-pro",
+	"gemini-2.5-flash",
+	"gemini-2.5-flash-lite",
+	"gemini-2.0-flash",
+]
 const GEMINI_CLI_MODELS = [
+	"auto pro",
+	"auto flash",
+	"auto",
 	"gemini-3.1-pro-preview",
 	"gemini-3-pro-preview",
 	"gemini-3-flash-preview",
@@ -18,7 +33,17 @@ const GEMINI_CLI_MODELS = [
 	"gemini-2.5-flash",
 	"gemini-2.5-flash-lite",
 ]
-const ANTIGRAVITY_MODELS = ["gemini-3-pro-preview", "gemini-3-flash-preview", "gemini-2.5-pro", "gemini-2.5-flash"]
+const GEMINI_CLI_FALLBACK_MODELS = [...GEMINI_CLI_MODELS]
+const ANTIGRAVITY_FALLBACK_MODELS = [
+	"auto pro",
+	"auto flash",
+	"auto",
+	"gemini-3-pro-high",
+	"gemini-3-pro-low",
+	"gemini-3-flash",
+	"gemini-2.5-pro",
+	"gemini-2.5-flash",
+]
 
 type ProviderType = "gemini" | "gemini-cli" | "antigravity"
 
@@ -34,10 +59,42 @@ const PROVIDER_COLORS: Record<ProviderType, string> = {
 	antigravity: "var(--vscode-terminal-ansiMagenta)",
 }
 
-function getModelsForProvider(provider: string): string[] {
-	if (provider === "gemini") return GEMINI_MODELS
-	if (provider === "gemini-cli") return GEMINI_CLI_MODELS
-	if (provider === "antigravity") return ANTIGRAVITY_MODELS
+function uniqModels(models: Array<string | undefined | null>): string[] {
+	return [...new Set(models.filter((model): model is string => !!model))]
+}
+
+function getProviderBadge(provider: string): string {
+	if (provider === "antigravity") return "AN"
+	if (provider === "gemini") return "AP"
+	if (provider === "gemini-cli") return "CL"
+	return provider.toUpperCase()
+}
+
+function getModelsForProvider(provider: string, account?: ProtoGllmAccount): string[] {
+	if (provider === "gemini") {
+		return uniqModels([
+			...GEMINI_FALLBACK_MODELS.slice(0, 3),
+			...(account?.availableModels ?? []),
+			account?.model,
+			...GEMINI_FALLBACK_MODELS.slice(3),
+		])
+	}
+	if (provider === "gemini-cli") {
+		return uniqModels([
+			...GEMINI_CLI_FALLBACK_MODELS.slice(0, 3),
+			...(account?.availableModels ?? []),
+			account?.model,
+			...GEMINI_CLI_FALLBACK_MODELS.slice(3),
+		])
+	}
+	if (provider === "antigravity") {
+		return uniqModels([
+			...ANTIGRAVITY_FALLBACK_MODELS.slice(0, 3),
+			...(account?.availableModels ?? []),
+			account?.model,
+			...ANTIGRAVITY_FALLBACK_MODELS.slice(3),
+		])
+	}
 	return []
 }
 
@@ -166,34 +223,37 @@ export const GllmAccountsSection: React.FC<GllmAccountsSectionProps> = ({ render
 	}, [])
 
 	const handleMoveUp = useCallback(
-		(index: number) => {
+		async (index: number) => {
 			if (index <= 0) return
 			const newAccounts = [...accounts]
 			;[newAccounts[index - 1], newAccounts[index]] = [newAccounts[index], newAccounts[index - 1]]
 			setAccounts(newAccounts)
-			// Set new top as main
-			if (index - 1 === 0) {
-				handleSetMain(newAccounts[0].id)
-			} else if (index === 0) {
-				// was top before, now second -> new top needs main
-				handleSetMain(newAccounts[0].id)
+			try {
+				await GllmAccountServiceClient.gllmReorderAccounts(
+					GllmReorderAccountsRequest.create({ accountIds: newAccounts.map((account) => account.id) }),
+				)
+			} catch (err: any) {
+				setMessage({ text: `並び替え失敗: ${err?.message ?? String(err)}`, success: false })
 			}
 		},
-		[accounts, handleSetMain],
+		[accounts],
 	)
 
 	const handleMoveDown = useCallback(
-		(index: number) => {
+		async (index: number) => {
 			if (index >= accounts.length - 1) return
 			const newAccounts = [...accounts]
 			;[newAccounts[index], newAccounts[index + 1]] = [newAccounts[index + 1], newAccounts[index]]
 			setAccounts(newAccounts)
-			// If moved item was at top (index 0), new top needs main
-			if (index === 0) {
-				handleSetMain(newAccounts[0].id)
+			try {
+				await GllmAccountServiceClient.gllmReorderAccounts(
+					GllmReorderAccountsRequest.create({ accountIds: newAccounts.map((account) => account.id) }),
+				)
+			} catch (err: any) {
+				setMessage({ text: `並び替え失敗: ${err?.message ?? String(err)}`, success: false })
 			}
 		},
-		[accounts, handleSetMain],
+		[accounts],
 	)
 
 	const handleOAuthLogin = useCallback(async (provider: string) => {
@@ -431,7 +491,7 @@ export const GllmAccountsSection: React.FC<GllmAccountsSectionProps> = ({ render
 												marginLeft: 4,
 											}}>
 											{account.label || "(unnamed)"}
-											{index === 0 && (
+											{account.isMain && (
 												<span
 													style={{
 														marginLeft: 6,
@@ -502,7 +562,7 @@ const AccountSettingsPanel: React.FC<AccountSettingsPanelProps> = ({
 	onLogin,
 	isLoggingIn,
 }) => {
-	const models = getModelsForProvider(account.provider)
+	const models = getModelsForProvider(account.provider, account)
 	const isOAuth = isOAuthProvider(account.provider)
 	const isGeminiApi = account.provider === "gemini"
 	const isLoggedIn = !!account.email
@@ -608,7 +668,7 @@ const AccountSettingsPanel: React.FC<AccountSettingsPanelProps> = ({
 						value={account.model}>
 						{models.map((m) => (
 							<VSCodeOption key={m} value={m}>
-								{m}
+								[{getProviderBadge(account.provider)}] {m}
 							</VSCodeOption>
 						))}
 					</VSCodeDropdown>

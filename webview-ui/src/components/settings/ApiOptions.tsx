@@ -1,4 +1,5 @@
-import { StringRequest } from "@shared/proto/cline/common"
+import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
+import { GllmAccount as ProtoGllmAccount } from "@shared/proto/cline/gllm_account"
 import PROVIDERS from "@shared/providers/providers.json"
 import { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
@@ -10,7 +11,7 @@ import { normalizeApiConfiguration } from "@/components/settings/utils/providerU
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { ModelsServiceClient } from "@/services/grpc-client"
+import { GllmAccountServiceClient, ModelsServiceClient } from "@/services/grpc-client"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { AIhubmixProvider } from "./providers/AihubmixProvider"
 import { AnthropicProvider } from "./providers/AnthropicProvider"
@@ -130,6 +131,18 @@ const ApiOptions = ({
 		}
 	}, [selectedProvider, requestLocalModels])
 	useInterval(requestLocalModels, selectedProvider === "ollama" ? 2000 : null)
+
+	// GLLM accounts - hide provider dropdown when accounts exist
+	const [gllmAccounts, setGllmAccounts] = useState<ProtoGllmAccount[]>([])
+	useEffect(() => {
+		const unsubscribe = GllmAccountServiceClient.gllmSubscribeToAccounts(EmptyRequest.create({}), {
+			onResponse: (list) => setGllmAccounts(list.accounts ?? []),
+			onError: () => {},
+			onComplete: () => {},
+		})
+		return unsubscribe
+	}, [])
+	const hasGllmAccounts = gllmAccounts.length > 0
 
 	// Provider search state
 	const [searchTerm, setSearchTerm] = useState("")
@@ -278,84 +291,89 @@ const ApiOptions = ({
 				}
 				`}
 			</style>
-			<DropdownContainer className="dropdown-container">
-				{remoteConfigSettings?.remoteConfiguredProviders && remoteConfigSettings.remoteConfiguredProviders.length > 0 ? (
-					<Tooltip>
-						<TooltipTrigger>
-							<div className="flex items-center gap-2 mb-1">
-								<label htmlFor="api-provider">
-									<span style={{ fontWeight: 500 }}>API Provider</span>
-								</label>
-								<i className="codicon codicon-lock text-description text-sm" />
-							</div>
-						</TooltipTrigger>
-						<TooltipContent>Provider options are managed by your organization's remote configuration</TooltipContent>
-					</Tooltip>
-				) : (
-					<label htmlFor="api-provider">
-						<span style={{ fontWeight: 500 }}>API Provider</span>
-					</label>
-				)}
-				<ProviderDropdownWrapper ref={dropdownRef}>
-					<VSCodeTextField
-						data-testid="provider-selector-input"
-						id="api-provider"
-						onFocus={() => {
-							setIsDropdownVisible(true)
-							setSearchTerm("")
-						}}
-						onInput={(e) => {
-							setSearchTerm((e.target as HTMLInputElement)?.value || "")
-							setIsDropdownVisible(true)
-						}}
-						onKeyDown={handleKeyDown}
-						placeholder="Search and select provider..."
-						role="combobox"
-						style={{
-							width: "100%",
-							zIndex: DROPDOWN_Z_INDEX,
-							position: "relative",
-							minWidth: 130,
-						}}
-						value={searchTerm}>
-						{searchTerm && searchTerm !== currentProviderLabel && (
-							<div
-								aria-label="Clear search"
-								className="input-icon-button codicon codicon-close"
-								onClick={() => {
-									setSearchTerm("")
-									setIsDropdownVisible(true)
-								}}
-								slot="end"
-								style={{
-									display: "flex",
-									justifyContent: "center",
-									alignItems: "center",
-									height: "100%",
-								}}
-							/>
-						)}
-					</VSCodeTextField>
-					{isDropdownVisible && (
-						<ProviderDropdownList ref={dropdownListRef} role="listbox">
-							{providerSearchResults.map((item, index) => (
-								<ProviderDropdownItem
-									data-testid={`provider-option-${item.value}`}
-									isSelected={index === selectedIndex}
-									key={item.value}
-									onClick={() => handleProviderChange(item.value)}
-									onMouseEnter={() => setSelectedIndex(index)}
-									ref={(el) => {
-										itemRefs.current[index] = el
-									}}
-									role="option">
-									<span>{item.html}</span>
-								</ProviderDropdownItem>
-							))}
-						</ProviderDropdownList>
+			{!hasGllmAccounts && (
+				<DropdownContainer className="dropdown-container">
+					{remoteConfigSettings?.remoteConfiguredProviders &&
+					remoteConfigSettings.remoteConfiguredProviders.length > 0 ? (
+						<Tooltip>
+							<TooltipTrigger>
+								<div className="flex items-center gap-2 mb-1">
+									<label htmlFor="api-provider">
+										<span style={{ fontWeight: 500 }}>API Provider</span>
+									</label>
+									<i className="codicon codicon-lock text-description text-sm" />
+								</div>
+							</TooltipTrigger>
+							<TooltipContent>
+								Provider options are managed by your organization's remote configuration
+							</TooltipContent>
+						</Tooltip>
+					) : (
+						<label htmlFor="api-provider">
+							<span style={{ fontWeight: 500 }}>API Provider</span>
+						</label>
 					)}
-				</ProviderDropdownWrapper>
-			</DropdownContainer>
+					<ProviderDropdownWrapper ref={dropdownRef}>
+						<VSCodeTextField
+							data-testid="provider-selector-input"
+							id="api-provider"
+							onFocus={() => {
+								setIsDropdownVisible(true)
+								setSearchTerm("")
+							}}
+							onInput={(e) => {
+								setSearchTerm((e.target as HTMLInputElement)?.value || "")
+								setIsDropdownVisible(true)
+							}}
+							onKeyDown={handleKeyDown}
+							placeholder="Search and select provider..."
+							role="combobox"
+							style={{
+								width: "100%",
+								zIndex: DROPDOWN_Z_INDEX,
+								position: "relative",
+								minWidth: 130,
+							}}
+							value={searchTerm}>
+							{searchTerm && searchTerm !== currentProviderLabel && (
+								<div
+									aria-label="Clear search"
+									className="input-icon-button codicon codicon-close"
+									onClick={() => {
+										setSearchTerm("")
+										setIsDropdownVisible(true)
+									}}
+									slot="end"
+									style={{
+										display: "flex",
+										justifyContent: "center",
+										alignItems: "center",
+										height: "100%",
+									}}
+								/>
+							)}
+						</VSCodeTextField>
+						{isDropdownVisible && (
+							<ProviderDropdownList ref={dropdownListRef} role="listbox">
+								{providerSearchResults.map((item, index) => (
+									<ProviderDropdownItem
+										data-testid={`provider-option-${item.value}`}
+										isSelected={index === selectedIndex}
+										key={item.value}
+										onClick={() => handleProviderChange(item.value)}
+										onMouseEnter={() => setSelectedIndex(index)}
+										ref={(el) => {
+											itemRefs.current[index] = el
+										}}
+										role="option">
+										<span>{item.html}</span>
+									</ProviderDropdownItem>
+								))}
+							</ProviderDropdownList>
+						)}
+					</ProviderDropdownWrapper>
+				</DropdownContainer>
+			)}
 
 			{apiConfiguration && selectedProvider === "hicap" && (
 				<HicapProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
