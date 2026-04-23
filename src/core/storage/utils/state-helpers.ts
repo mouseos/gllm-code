@@ -92,7 +92,7 @@ export async function readGlobalStateFromStorage(store: ClineMemento): Promise<G
  */
 async function handleComputedProperties(result: any, stateValues: Map<string, any>): Promise<void> {
 	// 1. API Provider logic - set defaults based on existing values
-	const defaultApiProvider: ApiProvider = "openrouter"
+	const defaultApiProvider: ApiProvider = "gemini"
 	result.planModeApiProvider = result.planModeApiProvider || defaultApiProvider
 	result.actModeApiProvider = result.actModeApiProvider || defaultApiProvider
 
