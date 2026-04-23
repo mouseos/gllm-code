@@ -7,7 +7,7 @@ import { PLATFORM_CONFIG } from "@/config/platform.config"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { StateServiceClient } from "@/services/grpc-client"
-import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
+import GllmAccountsSection from "../settings/sections/GllmAccountsSection"
 import { NEW_USER_TYPE, STEP_CONFIG, USER_TYPE_SELECTIONS } from "./data-steps"
 
 type GeminiCliCredentials = {
@@ -165,7 +165,7 @@ const OnboardingStepContent = ({ step, userType }: OnboardingStepContentProps) =
 	if (userType === NEW_USER_TYPE.ANTIGRAVITY) {
 		return <AntigravityLoginStep />
 	}
-	return <ApiConfigurationSection />
+	return <GllmAccountsSection renderSectionHeader={() => null} />
 }
 
 const OnboardingView = () => {

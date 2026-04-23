@@ -273,7 +273,7 @@ export const GllmAccountsSection: React.FC<GllmAccountsSectionProps> = ({ render
 
 	return (
 		<div>
-			{renderSectionHeader("gllm-accounts")}
+			{renderSectionHeader("accounts")}
 			<Section>
 				<div id="gllm-accounts-section">
 					{/* ---- Header ---- */}

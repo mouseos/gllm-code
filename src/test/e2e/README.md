@@ -156,7 +156,7 @@ await addSelectedCodeToClineWebview(page)
 #### Settings Navigation
 ```typescript
 await sidebar.getByText("settings").click()
-await sidebar.getByTestId("tab-api-config").click()
+await sidebar.getByTestId("tab-accounts").click()
 ```
 
 ### Using the Recorder with Debug Mode

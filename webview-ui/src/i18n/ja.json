@@ -6,7 +6,7 @@
 		"act_mode_tooltip": "アクトモードでは、GLLM Codeがタスクをすぐに実行します",
 		"add_context": "コンテキストを追加",
 		"add_files_images": "ファイル・画像を追加",
-		"open_api_settings": "API設定を開く",
+		"open_api_settings": "アカウント設定を開く",
 		"helper_text": "@ でコンテキスト、/ でスラッシュコマンド、Shift を押しながらファイル・画像をドラッグ"
 	},
 	"navbar": {
@@ -24,7 +24,8 @@
 		"save": "保存",
 		"cancel": "キャンセル",
 		"tabs": {
-			"api_configuration": "API設定",
+			"accounts": "アカウント",
+			"api_configuration": "アカウント",
 			"features": "機能",
 			"feature_settings": "機能設定",
 			"browser": "ブラウザ",

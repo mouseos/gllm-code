@@ -955,8 +955,35 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		}, [inputValue, handleInputChange, updateHighlights])
 
 		const _handleModelButtonClick = () => {
-			navigateToSettingsModelPicker({ targetSection: "api-config" })
+			navigateToSettingsModelPicker({ targetSection: "accounts" })
 		}
+
+		const handleToolbarSlashCommandInsert = useCallback(
+			(command: string) => {
+				const textArea = textAreaRef.current
+				const currentValue = textArea?.value ?? inputValue
+				const selectionStart = textArea?.selectionStart ?? cursorPosition
+				const selectionEnd = textArea?.selectionEnd ?? selectionStart
+				const beforeSelection = currentValue.slice(0, selectionStart)
+				const afterSelection = currentValue.slice(selectionEnd)
+				const leadingSpace = beforeSelection.length > 0 && !/\s$/.test(beforeSelection) ? " " : ""
+				const trailingSpace = afterSelection.length > 0 && /^\s/.test(afterSelection) ? "" : " "
+				const insertedCommand = `${leadingSpace}${command}${trailingSpace}`
+				const newValue = `${beforeSelection}${insertedCommand}${afterSelection}`
+				const newCursorPosition = beforeSelection.length + leadingSpace.length + command.length + trailingSpace.length
+
+				setInputValue(newValue)
+				setCursorPosition(newCursorPosition)
+				setIntendedCursorPosition(newCursorPosition)
+				setShowSlashCommandsMenu(false)
+				setShowContextMenu(false)
+
+				setTimeout(() => {
+					textAreaRef.current?.focus()
+				}, 0)
+			},
+			[cursorPosition, inputValue, setInputValue],
+		)
 
 		// Get model display name
 		const modelDisplayName = useMemo(() => {
@@ -1412,17 +1439,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					navigateToMcp={() => navigateToMcp()}
 					navigateToSettings={(targetSection) => navigateToSettingsModelPicker({ targetSection })}
 					onContextButtonClick={handleContextButtonClick}
-					onInsertSlashCommand={(command) => {
-						if (textAreaRef.current) {
-							const currentValue = textAreaRef.current.value
-							const newValue = currentValue ? `${command} ${currentValue}` : `${command} `
-							textAreaRef.current.value = newValue
-							textAreaRef.current.focus()
-							// Trigger input event so React state updates
-							const event = new Event("input", { bubbles: true })
-							textAreaRef.current.dispatchEvent(event)
-						}
-					}}
+					onInsertSlashCommand={handleToolbarSlashCommandInsert}
 					onModeToggle={onModeToggle}
 					onSelectFilesAndImages={onSelectFilesAndImages}
 					onSend={() => {

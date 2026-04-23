@@ -277,12 +277,12 @@ export const Welcome: Story = {
 		const canvas = within(canvasElement)
 		// Button has vscode-button element name
 		const getStartedButton = canvas.getByText("Get Started for Free")
-		const byokButton = canvas.getByText("Use your own API key")
+		const accountsButton = canvas.getByText("Manage GLLM accounts")
 		await expect(getStartedButton).toBeInTheDocument()
-		await expect(byokButton).toBeInTheDocument()
-		await userEvent.click(byokButton)
+		await expect(accountsButton).toBeInTheDocument()
+		await userEvent.click(accountsButton)
 		await expect(getStartedButton).toBeInTheDocument()
-		await expect(byokButton).not.toBeInTheDocument()
+		await expect(accountsButton).not.toBeInTheDocument()
 	},
 }
 

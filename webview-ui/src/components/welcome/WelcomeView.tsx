@@ -1,19 +1,13 @@
 import { BooleanRequest, EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { memo, useEffect, useState } from "react"
+import { memo, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
-import ApiOptions from "@/components/settings/ApiOptions"
-import { useExtensionState } from "@/context/ExtensionStateContext"
+import GllmAccountsSection from "@/components/settings/sections/GllmAccountsSection"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
-import { validateApiConfiguration } from "@/utils/validate"
 
 const WelcomeView = memo(() => {
-	const { apiConfiguration, mode } = useExtensionState()
-	const [apiErrorMessage, setApiErrorMessage] = useState<string | undefined>(undefined)
-	const [showApiOptions, setShowApiOptions] = useState(false)
+	const [showAccountSettings, setShowAccountSettings] = useState(false)
 	const [isLoading, setIsLoading] = useState(false)
-
-	const disableLetsGoButton = apiErrorMessage != null
 
 	const handleLogin = () => {
 		setIsLoading(true)
@@ -31,10 +25,6 @@ const WelcomeView = memo(() => {
 			console.error("Failed to update API configuration or complete welcome view:", error)
 		}
 	}
-
-	useEffect(() => {
-		setApiErrorMessage(validateApiConfiguration(mode, apiConfiguration))
-	}, [apiConfiguration, mode])
 
 	return (
 		<div className="fixed inset-0 p-0 flex flex-col">
@@ -54,8 +44,7 @@ const WelcomeView = memo(() => {
 				</p>
 
 				<p className="text-(--vscode-descriptionForeground)">
-					Sign up for an account to get started for free, or use an API key that provides access to models like Claude
-					Sonnet.
+					Sign in to get started for free, or add a GLLM account such as Gemini CLI, Antigravity, or Gemini API.
 				</p>
 
 				<VSCodeButton appearance="primary" className="w-full mt-1" disabled={isLoading} onClick={handleLogin}>
@@ -67,20 +56,20 @@ const WelcomeView = memo(() => {
 					)}
 				</VSCodeButton>
 
-				{!showApiOptions && (
+				{!showAccountSettings && (
 					<VSCodeButton
 						appearance="secondary"
 						className="mt-2.5 w-full"
-						onClick={() => setShowApiOptions(!showApiOptions)}>
-						Use your own API key
+						onClick={() => setShowAccountSettings(!showAccountSettings)}>
+						Manage GLLM accounts
 					</VSCodeButton>
 				)}
 
 				<div className="mt-4.5">
-					{showApiOptions && (
+					{showAccountSettings && (
 						<div>
-							<ApiOptions currentMode={mode} showModelOptions={false} />
-							<VSCodeButton className="mt-0.75" disabled={disableLetsGoButton} onClick={handleSubmit}>
+							<GllmAccountsSection renderSectionHeader={() => null} />
+							<VSCodeButton className="mt-0.75" onClick={handleSubmit}>
 								Let's go!
 							</VSCodeButton>
 						</div>

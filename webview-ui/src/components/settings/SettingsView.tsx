@@ -7,8 +7,8 @@ import {
 	HardDriveDownload,
 	Info,
 	type LucideIcon,
-	SlidersHorizontal,
 	SquareMousePointer,
+	UserRound,
 	Wrench,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
@@ -24,17 +24,17 @@ import { Tab, TabContent, TabList, TabTrigger } from "../common/Tab"
 import ViewHeader from "../common/ViewHeader"
 import SectionHeader from "./SectionHeader"
 import AboutSection from "./sections/AboutSection"
-import ApiConfigurationSection from "./sections/ApiConfigurationSection"
 import BrowserSettingsSection from "./sections/BrowserSettingsSection"
 import DebugSection from "./sections/DebugSection"
 import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import GeneralSettingsSection from "./sections/GeneralSettingsSection"
+import GllmAccountsSection from "./sections/GllmAccountsSection"
 import { RemoteConfigSection } from "./sections/RemoteConfigSection"
 
 const IS_DEV = process.env.IS_DEV
 
 // Tab definitions
-type SettingsTabID = "api-config" | "features" | "browser" | "general" | "about" | "debug" | "remote-config"
+type SettingsTabID = "accounts" | "features" | "browser" | "general" | "about" | "debug" | "remote-config"
 interface SettingsTab {
 	id: SettingsTabID
 	name: string
@@ -46,11 +46,11 @@ interface SettingsTab {
 
 export const SETTINGS_TABS: SettingsTab[] = [
 	{
-		id: "api-config",
-		name: "API Configuration",
-		tooltipText: "API Configuration",
-		headerText: "API Configuration",
-		icon: SlidersHorizontal,
+		id: "accounts",
+		name: "Accounts",
+		tooltipText: "Accounts",
+		headerText: "Accounts",
+		icon: UserRound,
 	},
 	{
 		id: "features",
@@ -106,10 +106,10 @@ type SettingsViewProps = {
 }
 
 const TAB_TRANSLATION_KEYS: Record<string, { name: string; tooltip: string; header: string }> = {
-	"api-config": {
-		name: "settings.tabs.api_configuration",
-		tooltip: "settings.tabs.api_configuration",
-		header: "settings.tabs.api_configuration",
+	accounts: {
+		name: "settings.tabs.accounts",
+		tooltip: "settings.tabs.accounts",
+		header: "settings.tabs.accounts",
 	},
 	features: {
 		name: "settings.tabs.features",
@@ -139,7 +139,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	// Memoize to avoid recreation
 	const TAB_CONTENT_MAP: Record<SettingsTabID, React.FC<any>> = useMemo(
 		() => ({
-			"api-config": ApiConfigurationSection,
+			accounts: GllmAccountsSection,
 			general: GeneralSettingsSection,
 			features: FeatureSettingsSection,
 			browser: BrowserSettingsSection,
@@ -151,8 +151,15 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	) // Empty deps - these imports never change
 
 	const { t } = useTranslation()
-	const { version, environment, settingsInitialModelTab } = useExtensionState()
+	const { version, environment } = useExtensionState()
 	const { activeOrganization } = useClineAuth()
+
+	const normalizeTabId = useCallback((tabId?: string) => {
+		if (tabId === "api-config" || tabId === "gllm-accounts") {
+			return "accounts"
+		}
+		return tabId
+	}, [])
 
 	const renderSectionHeader = useCallback(
 		(tabId: string) => {
@@ -171,47 +178,50 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		[t],
 	)
 
-	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
+	const [activeTab, setActiveTab] = useState<string>(normalizeTabId(targetSection) || SETTINGS_TABS[0].id)
 
 	// Optimized message handler with early returns
-	const handleMessage = useCallback((event: MessageEvent) => {
-		const message: ExtensionMessage = event.data
-		if (message.type !== "grpc_response") {
-			return
-		}
-
-		const grpcMessage = message.grpc_response?.message
-		if (grpcMessage?.key !== "scrollToSettings") {
-			return
-		}
-
-		const tabId = grpcMessage.value
-		if (!tabId) {
-			return
-		}
-
-		// Check if valid tab ID
-		if (SETTINGS_TABS.some((tab) => tab.id === tabId)) {
-			setActiveTab(tabId)
-			return
-		}
-
-		// Fallback to element scrolling
-		requestAnimationFrame(() => {
-			const element = document.getElementById(tabId)
-			if (!element) {
+	const handleMessage = useCallback(
+		(event: MessageEvent) => {
+			const message: ExtensionMessage = event.data
+			if (message.type !== "grpc_response") {
 				return
 			}
 
-			element.scrollIntoView({ behavior: "smooth" })
-			element.style.transition = "background-color 0.5s ease"
-			element.style.backgroundColor = "var(--vscode-textPreformat-background)"
+			const grpcMessage = message.grpc_response?.message
+			if (grpcMessage?.key !== "scrollToSettings") {
+				return
+			}
 
-			setTimeout(() => {
-				element.style.backgroundColor = "transparent"
-			}, 1200)
-		})
-	}, [])
+			const tabId = normalizeTabId(grpcMessage.value)
+			if (!tabId) {
+				return
+			}
+
+			// Check if valid tab ID
+			if (SETTINGS_TABS.some((tab) => tab.id === tabId)) {
+				setActiveTab(tabId)
+				return
+			}
+
+			// Fallback to element scrolling
+			requestAnimationFrame(() => {
+				const element = document.getElementById(tabId)
+				if (!element) {
+					return
+				}
+
+				element.scrollIntoView({ behavior: "smooth" })
+				element.style.transition = "background-color 0.5s ease"
+				element.style.backgroundColor = "var(--vscode-textPreformat-background)"
+
+				setTimeout(() => {
+					element.style.backgroundColor = "transparent"
+				}, 1200)
+			})
+		},
+		[normalizeTabId],
+	)
 
 	useEvent("message", handleMessage)
 
@@ -227,9 +237,9 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 	// Update active tab when targetSection changes
 	useEffect(() => {
 		if (targetSection) {
-			setActiveTab(targetSection)
+			setActiveTab(normalizeTabId(targetSection) ?? targetSection)
 		}
-	}, [targetSection])
+	}, [normalizeTabId, targetSection])
 
 	// Memoized tab item renderer
 	const renderTabItem = useCallback(
@@ -275,12 +285,10 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			props.onResetState = handleResetState
 		} else if (activeTab === "about") {
 			props.version = version
-		} else if (activeTab === "api-config") {
-			props.initialModelTab = settingsInitialModelTab
 		}
 
 		return <Component {...props} />
-	}, [activeTab, handleResetState, settingsInitialModelTab, version])
+	}, [activeTab, handleResetState, version])
 
 	return (
 		<Tab>

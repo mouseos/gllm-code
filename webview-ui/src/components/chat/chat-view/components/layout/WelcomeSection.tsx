@@ -195,7 +195,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 						planModeApiProvider: "cline",
 						actModeApiProvider: "cline",
 					})
-					navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
+					navigateToSettingsModelPicker({ targetSection: "accounts", initialModelTab })
 					break
 				}
 
@@ -211,7 +211,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 							actModeApiProvider: action.arg as any,
 						})
 					}
-					navigateToSettings("api-config")
+					navigateToSettings("accounts")
 					break
 
 				case BannerActionType.ShowFeatureSettings:

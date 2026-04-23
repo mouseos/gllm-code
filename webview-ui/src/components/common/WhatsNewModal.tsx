@@ -42,7 +42,7 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 			}
 			handleFieldsChange(updates)
 			onClose()
-			navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
+			navigateToSettingsModelPicker({ targetSection: "accounts", initialModelTab })
 		},
 		[handleFieldsChange, navigateToSettingsModelPicker, onClose, openRouterModels],
 	)

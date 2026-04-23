@@ -6,7 +6,7 @@
 		"act_mode_tooltip": "In Act mode, GLLM Code will complete the task immediately",
 		"add_context": "Add Context",
 		"add_files_images": "Add Files & Images",
-		"open_api_settings": "Open API Settings",
+		"open_api_settings": "Open Account Settings",
 		"helper_text": "Type @ for context, / for slash commands & workflows, hold shift to drag in files/images"
 	},
 	"navbar": {
@@ -24,7 +24,8 @@
 		"save": "Save",
 		"cancel": "Cancel",
 		"tabs": {
-			"api_configuration": "API Configuration",
+			"accounts": "Accounts",
+			"api_configuration": "Accounts",
 			"features": "Features",
 			"feature_settings": "Feature Settings",
 			"browser": "Browser",

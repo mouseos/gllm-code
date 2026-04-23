@@ -31,7 +31,7 @@ export const STEP_CONFIG = {
 		],
 	},
 	[NEW_USER_TYPE.BYOK]: {
-		title: "Configure your provider",
+		title: "Gemini API Account",
 		buttons: [
 			{ text: "Continue", action: "done", variant: "default" },
 			{ text: "Back", action: "back", variant: "secondary" },
@@ -42,5 +42,5 @@ export const STEP_CONFIG = {
 export const USER_TYPE_SELECTIONS: UserTypeSelection[] = [
 	{ title: "Gemini CLI", description: "Login with Gemini Code Assist credentials", type: NEW_USER_TYPE.GEMINI_CLI },
 	{ title: "Antigravity", description: "Login with Antigravity credentials", type: NEW_USER_TYPE.ANTIGRAVITY },
-	{ title: "API Settings", description: "Use your own API key or provider", type: NEW_USER_TYPE.BYOK },
+	{ title: "Gemini API", description: "Add a Gemini API key account", type: NEW_USER_TYPE.BYOK },
 ]
