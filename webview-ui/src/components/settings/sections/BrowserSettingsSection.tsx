@@ -1,6 +1,7 @@
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeCheckbox, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React, { useCallback, useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import styled from "styled-components"
 import { BROWSER_VIEWPORT_PRESETS } from "../../../../../src/shared/BrowserSettings"
 import { useExtensionState } from "../../../context/ExtensionStateContext"
@@ -18,10 +19,12 @@ const ConnectionStatusIndicator = ({
 	isChecking,
 	isConnected,
 	remoteBrowserEnabled,
+	t,
 }: {
 	isChecking: boolean
 	isConnected: boolean | null
 	remoteBrowserEnabled?: boolean
+	t: (key: string) => string
 }) => {
 	if (!remoteBrowserEnabled) {
 		return null
@@ -32,21 +35,22 @@ const ConnectionStatusIndicator = ({
 			{isChecking ? (
 				<>
 					<Spinner />
-					<StatusText>Checking connection...</StatusText>
+					<StatusText>{t("browser.checking")}</StatusText>
 				</>
 			) : isConnected === true ? (
 				<>
 					<CheckIcon className="codicon codicon-check" />
-					<StatusText style={{ color: "var(--vscode-terminal-ansiGreen)" }}>Connected</StatusText>
+					<StatusText style={{ color: "var(--vscode-terminal-ansiGreen)" }}>{t("browser.connected")}</StatusText>
 				</>
 			) : isConnected === false ? (
-				<StatusText style={{ color: "var(--vscode-errorForeground)" }}>Not connected</StatusText>
+				<StatusText style={{ color: "var(--vscode-errorForeground)" }}>{t("browser.not_connected")}</StatusText>
 			) : null}
 		</StatusContainer>
 	)
 }
 
 export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ renderSectionHeader }) => {
+	const { t } = useTranslation()
 	const { browserSettings } = useExtensionState()
 	const [isCheckingConnection, setIsCheckingConnection] = useState(false)
 	const [connectionStatus, setConnectionStatus] = useState<boolean | null>(null)
@@ -182,7 +186,9 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ 
 					<CollapsibleContent isOpen={isSubSettingsOpen}>
 						<div style={{ marginBottom: 15 }}>
 							<div style={{ marginBottom: 8 }}>
-								<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>Viewport size</label>
+								<label style={{ fontWeight: "500", display: "block", marginBottom: 5 }}>
+									{t("browser.viewport_size")}
+								</label>
 								<VSCodeDropdown
 									onChange={(event) => handleViewportChange(event as Event)}
 									style={{ width: "100%" }}
@@ -238,6 +244,7 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ 
 									isChecking={isCheckingConnection}
 									isConnected={connectionStatus}
 									remoteBrowserEnabled={browserSettings.remoteBrowserEnabled}
+									t={t}
 								/>
 							</div>
 							<p
@@ -312,7 +319,8 @@ export const BrowserSettingsSection: React.FC<BrowserSettingsSectionProps> = ({ 
 											fontSize: "12px",
 											color: "var(--vscode-descriptionForeground)",
 											margin: 0,
-										}}></p>
+										}}
+									/>
 								</div>
 							)}
 							{/* Chrome Executable Path section now follows remote-specific settings */}

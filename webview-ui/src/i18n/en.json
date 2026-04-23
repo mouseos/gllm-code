@@ -155,5 +155,68 @@
 		"cancel": "Cancel",
 		"save": "Save",
 		"loading": "Loading..."
+	},
+	"auto_approve": {
+		"title": "Auto-approve",
+		"none": "None",
+		"yolo_title": "Auto-approve: YOLO",
+		"yolo_desc": "YOLO mode is enabled.",
+		"yolo_disable": "Disable it in Settings",
+		"modal_desc": "Let GLLM Code take these actions without asking for approval.",
+		"docs": "Docs",
+		"enable_notifications": "Enable notifications",
+		"notifications_privacy": "Notifications may show abbreviated tool details for safety and privacy.",
+		"close": "Close auto-approve settings",
+		"open": "Open auto-approve settings",
+		"actions": {
+			"readFiles": {
+				"label": "Read project files",
+				"shortName": "Read"
+			},
+			"readFilesExternally": {
+				"label": "Read all files",
+				"shortName": "Read (all)"
+			},
+			"editFiles": {
+				"label": "Edit project files",
+				"shortName": "Edit"
+			},
+			"editFilesExternally": {
+				"label": "Edit all files",
+				"shortName": "Edit (all)"
+			},
+			"executeSafeCommands": {
+				"label": "Execute safe commands",
+				"shortName": "Safe Commands"
+			},
+			"executeAllCommands": {
+				"label": "Execute all commands",
+				"shortName": "All Commands"
+			},
+			"useBrowser": {
+				"label": "Use the browser",
+				"shortName": "Browser"
+			},
+			"useMcp": {
+				"label": "Use MCP servers",
+				"shortName": "MCP"
+			},
+			"enableNotifications": {
+				"label": "Enable notifications",
+				"shortName": "Notifications"
+			}
+		}
+	},
+	"api_config": {
+		"plan_mode": "Plan Mode",
+		"act_mode": "Act Mode",
+		"separate_models": "Use different models for Plan and Act modes",
+		"separate_models_desc": "Switching between Plan and Act mode will persist the API and model used in the previous mode. This may be helpful e.g. when using a strong reasoning model to architect a plan for a cheaper coding model to act on."
+	},
+	"browser": {
+		"checking": "Checking connection...",
+		"connected": "Connected",
+		"not_connected": "Not connected",
+		"viewport_size": "Viewport size"
 	}
 }

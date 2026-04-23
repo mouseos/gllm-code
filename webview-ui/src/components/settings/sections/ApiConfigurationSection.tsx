@@ -2,6 +2,7 @@ import { UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { Mode } from "@shared/storage/types"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { StateServiceClient } from "@/services/grpc-client"
 import { TabButton } from "../../mcp/configuration/McpConfigurationView"
@@ -16,6 +17,7 @@ interface ApiConfigurationSectionProps {
 }
 
 const ApiConfigurationSection = ({ renderSectionHeader, initialModelTab }: ApiConfigurationSectionProps) => {
+	const { t } = useTranslation()
 	const { planActSeparateModelsSetting, mode, apiConfiguration } = useExtensionState()
 	const [currentTab, setCurrentTab] = useState<Mode>(mode)
 	const { handleFieldsChange } = useApiConfigurationHandlers()
@@ -35,7 +37,7 @@ const ApiConfigurationSection = ({ renderSectionHeader, initialModelTab }: ApiCo
 									opacity: 1,
 									cursor: "pointer",
 								}}>
-								Plan Mode
+								{t("api_config.plan_mode")}
 							</TabButton>
 							<TabButton
 								disabled={currentTab === "act"}
@@ -45,7 +47,7 @@ const ApiConfigurationSection = ({ renderSectionHeader, initialModelTab }: ApiCo
 									opacity: 1,
 									cursor: "pointer",
 								}}>
-								Act Mode
+								{t("api_config.act_mode")}
 							</TabButton>
 						</div>
 
@@ -78,11 +80,10 @@ const ApiConfigurationSection = ({ renderSectionHeader, initialModelTab }: ApiCo
 								console.error("Failed to update separate models setting:", error)
 							}
 						}}>
-						Use different models for Plan and Act modes
+						{t("api_config.separate_models")}
 					</VSCodeCheckbox>
 					<p className="text-xs mt-[5px] text-(--vscode-descriptionForeground)">
-						Switching between Plan and Act mode will persist the API and model used in the previous mode. This may be
-						helpful e.g. when using a strong reasoning model to architect a plan for a cheaper coding model to act on.
+						{t("api_config.separate_models_desc")}
 					</p>
 				</div>
 			</Section>

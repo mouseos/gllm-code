@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { getEnvironmentColor } from "@/utils/environmentColors"
 import type { Environment } from "../../../../src/shared/config-types"
@@ -17,6 +18,7 @@ type ViewHeaderProps = {
 }
 
 const ViewHeader = ({ title, onDone, showEnvironmentSuffix, environment }: ViewHeaderProps) => {
+	const { t } = useTranslation()
 	const showSubtext = showEnvironmentSuffix && environment && environment !== "production"
 	const capitalizedEnv = environment ? ENV_DISPLAY_NAMES[environment] : ""
 	const titleColor = getEnvironmentColor(environment)
@@ -33,8 +35,8 @@ const ViewHeader = ({ title, onDone, showEnvironmentSuffix, environment }: ViewH
 					</span>
 				)}
 			</div>
-			<Button size="header" onClick={onDone}>
-				Done
+			<Button onClick={onDone} size="header">
+				{t("common.done")}
 			</Button>
 		</div>
 	)
