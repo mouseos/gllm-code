@@ -29,7 +29,7 @@ export interface ChatToolbarProps {
 	onInsertSlashCommand: (command: string) => void
 }
 
-type MenuId = "plus" | "slash" | "mode" | "model" | "usage" | null
+type MenuId = "plus" | "slash" | "mode" | "model" | "model-status" | "usage" | null
 
 // ---------------------------------------------------------------------------
 // Model definitions
@@ -336,12 +336,12 @@ const menuContainerStyle: React.CSSProperties = {
 	backgroundColor: MENU_BG,
 	color: MENU_FG,
 	border: `1px solid ${MENU_BORDER}`,
-	borderRadius: 6,
+	borderRadius: 2,
 	padding: "4px 0",
 	minWidth: 220,
-	boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+	boxShadow: "0 8px 20px rgba(0,0,0,0.24)",
 	zIndex: 1000,
-	fontSize: 13,
+	fontSize: 12,
 }
 
 const menuItemBaseStyle: React.CSSProperties = {
@@ -368,10 +368,10 @@ const iconButtonStyle: React.CSSProperties = {
 	justifyContent: "center",
 	width: 26,
 	height: 26,
-	borderRadius: 4,
+	borderRadius: 2,
 	border: "none",
 	background: "transparent",
-	color: "var(--vscode-foreground)",
+	color: "var(--vscode-descriptionForeground)",
 	cursor: "pointer",
 	padding: 0,
 	flexShrink: 0,
@@ -395,7 +395,8 @@ const MenuItem: React.FC<MenuItemProps> = ({ label, rightLabel, checked, onClick
 			onClick={onClick}
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
-			style={{ ...menuItemBaseStyle, backgroundColor: hovered ? MENU_HOVER : "transparent" }}>
+			style={{ ...menuItemBaseStyle, backgroundColor: hovered ? MENU_HOVER : "transparent" }}
+			type="button">
 			<span style={{ display: "flex", alignItems: "center", gap: 6 }}>
 				{checked !== undefined && (
 					<span style={{ width: 16, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
@@ -591,7 +592,7 @@ const UsageSummaryMenu: React.FC<{
 			)}
 		</div>
 		<MenuSeparator />
-		<button onClick={onClose} style={{ ...menuItemBaseStyle, padding: "6px 12px 8px" }}>
+		<button onClick={onClose} style={{ ...menuItemBaseStyle, padding: "6px 12px 8px" }} type="button">
 			<span>Close</span>
 		</button>
 	</div>
@@ -846,20 +847,37 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 					display: "flex",
 					alignItems: "center",
 					justifyContent: "space-between",
-					padding: "2px 8px 6px",
-					gap: 4,
+					padding: "0 8px 4px 30px",
+					gap: 8,
+					color: "var(--vscode-descriptionForeground)",
+					fontSize: 12,
+					lineHeight: "18px",
 				}}>
 				{/* Left: + button and slash button */}
-				<div style={{ display: "flex", alignItems: "center", gap: 2, position: "relative" }}>
+				<div style={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0, position: "relative" }}>
 					<button
 						onClick={() => toggleMenu("plus")}
-						style={{ ...iconButtonStyle, opacity: shouldDisableFilesAndImages ? 0.4 : 1 }}
-						title="Add content">
-						<Plus size={16} />
+						style={{ ...iconButtonStyle, height: 22, opacity: shouldDisableFilesAndImages ? 0.4 : 1, width: 22 }}
+						title="Add content"
+						type="button">
+						<Plus size={14} />
 					</button>
-					<button onClick={() => toggleMenu("slash")} style={iconButtonStyle} title="Commands & settings">
-						<Slash size={16} />
+					<button
+						onClick={() => toggleMenu("slash")}
+						style={{ ...iconButtonStyle, height: 22, width: 22 }}
+						title="Commands & settings"
+						type="button">
+						<Slash size={14} />
 					</button>
+					<span
+						style={{
+							marginLeft: 4,
+							overflow: "hidden",
+							textOverflow: "ellipsis",
+							whiteSpace: "nowrap",
+						}}>
+						/ commands · @ files · ! shell
+					</span>
 
 					{openMenu === "plus" && (
 						<PlusMenu
@@ -900,6 +918,33 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 
 				{/* Right: mode button and send button */}
 				<div style={{ display: "flex", alignItems: "center", gap: 6, position: "relative" }}>
+					<button
+						onClick={() => toggleMenu("model-status")}
+						style={{
+							background: "transparent",
+							border: "none",
+							color: "var(--vscode-descriptionForeground)",
+							cursor: "pointer",
+							fontFamily: "inherit",
+							fontSize: 12,
+							maxWidth: 170,
+							overflow: "hidden",
+							padding: "1px 2px",
+							textOverflow: "ellipsis",
+							whiteSpace: "nowrap",
+						}}
+						title="Switch model"
+						type="button">
+						{modelDisplayName}
+					</button>
+					{openMenu === "model-status" && (
+						<ModelPickerMenu
+							currentModel={currentModel}
+							onClose={closeMenu}
+							onSelectModel={handleSelectModel}
+							sections={modelSections}
+						/>
+					)}
 					<div ref={modeButtonRef} style={{ display: "inline-flex" }}>
 						<button
 							onClick={() => toggleMenu("mode")}
@@ -907,19 +952,20 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 								display: "flex",
 								alignItems: "center",
 								gap: 4,
-								padding: "3px 10px",
-								borderRadius: 4,
-								border: "1px solid var(--vscode-input-border)",
+								padding: "1px 4px",
+								borderRadius: 2,
+								border: "none",
 								background: "transparent",
-								color: "var(--vscode-foreground)",
+								color: "var(--vscode-descriptionForeground)",
 								cursor: "pointer",
 								fontSize: 12,
 								fontFamily: "inherit",
 								whiteSpace: "nowrap",
-								lineHeight: "1.4",
+								lineHeight: "18px",
 							}}
-							title="Execution mode">
-							<span style={{ fontSize: 13 }}>{modeIcon}</span>
+							title="Execution mode"
+							type="button">
+							<span style={{ fontSize: 12 }}>{modeIcon}</span>
 							<span>{modeLabel}</span>
 						</button>
 					</div>
@@ -947,23 +993,20 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 							display: "flex",
 							alignItems: "center",
 							justifyContent: "center",
-							width: 28,
-							height: 28,
-							borderRadius: "50%",
+							width: 24,
+							height: 24,
+							borderRadius: 2,
 							border: "none",
-							backgroundColor: sendingDisabled
-								? "var(--vscode-button-secondaryBackground, rgba(128,128,128,0.3))"
-								: "var(--vscode-button-background)",
-							color: sendingDisabled
-								? "var(--vscode-button-secondaryForeground, var(--vscode-disabledForeground))"
-								: "var(--vscode-button-foreground)",
+							backgroundColor: sendingDisabled ? "transparent" : "var(--vscode-button-background)",
+							color: sendingDisabled ? "var(--vscode-disabledForeground)" : "var(--vscode-button-foreground)",
 							cursor: sendingDisabled ? "not-allowed" : "pointer",
 							opacity: sendingDisabled ? 0.5 : 1,
 							padding: 0,
 							flexShrink: 0,
 						}}
-						title="Send">
-						<ArrowUp size={16} strokeWidth={2.5} />
+						title="Send"
+						type="button">
+						<ArrowUp size={14} strokeWidth={2.5} />
 					</button>
 				</div>
 			</div>

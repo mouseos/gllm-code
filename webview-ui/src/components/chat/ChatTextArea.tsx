@@ -1264,11 +1264,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		return (
 			<div>
 				<div
-					className="relative flex transition-colors ease-in-out duration-100 px-3.5 py-2.5"
+					className="relative flex transition-colors ease-in-out duration-100 border-t border-editor-group-border bg-editor-background px-3 py-2"
 					onDragEnter={handleDragEnter}
 					onDragLeave={handleDragLeave}
 					onDragOver={onDragOver}
 					onDrop={onDrop}>
+					<div className="absolute left-4 top-[17px] z-2 select-none font-mono text-[13px] leading-5 text-description">
+						&gt;
+					</div>
 					{showDimensionError && (
 						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
 							<span className="text-error font-bold text-xs text-center">Image dimensions exceed 7500px</span>
@@ -1313,8 +1316,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					)}
 					<div
 						className={cn(
-							"absolute bottom-2.5 top-2.5 whitespace-pre-wrap break-words rounded-xs overflow-hidden bg-input-background",
-							isTextAreaFocused ? "left-3.5 right-3.5" : "left-3.5 right-3.5 border border-input-border",
+							"absolute bottom-2 top-2 whitespace-pre-wrap break-words overflow-hidden bg-transparent",
+							isTextAreaFocused ? "left-8 right-3" : "left-8 right-3",
 						)}
 						ref={highlightLayerRef}
 						style={{
@@ -1327,19 +1330,19 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							fontFamily: "var(--vscode-font-family)",
 							fontSize: "var(--vscode-editor-font-size)",
 							lineHeight: "var(--vscode-editor-line-height)",
-							borderRadius: 2,
+							borderRadius: 0,
 							borderLeft: isTextAreaFocused ? 0 : undefined,
 							borderRight: isTextAreaFocused ? 0 : undefined,
 							borderTop: isTextAreaFocused ? 0 : undefined,
 							borderBottom: isTextAreaFocused ? 0 : undefined,
-							padding: `9px 28px ${9 + thumbnailsHeight}px 9px`,
+							padding: `5px 28px ${5 + thumbnailsHeight}px 0`,
 						}}
 					/>
 					<DynamicTextArea
 						autoFocus={true}
 						data-testid="chat-input"
-						maxRows={10}
-						minRows={3}
+						maxRows={8}
+						minRows={1}
 						onBlur={handleBlur}
 						onChange={(e) => {
 							handleInputChange(e)
@@ -1376,7 +1379,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							backgroundColor: "transparent",
 							color: "var(--vscode-input-foreground)",
 							//border: "1px solid var(--vscode-input-border)",
-							borderRadius: 2,
+							borderRadius: 0,
 							fontFamily: "var(--vscode-font-family)",
 							fontSize: "var(--vscode-editor-font-size)",
 							lineHeight: "var(--vscode-editor-line-height)",
@@ -1395,23 +1398,24 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
 							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
 							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-							padding: "9px 28px 9px 9px",
+							padding: "5px 28px 5px 20px",
 							cursor: "text",
 							flex: 1,
 							zIndex: 1,
 							outline:
 								isDraggingOver && !showUnsupportedFileError // Only show drag outline if not showing error
 									? "2px dashed var(--vscode-focusBorder)"
-									: isTextAreaFocused
-										? `1px solid ${mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
-										: "none",
+									: "none",
 							outlineOffset: isDraggingOver && !showUnsupportedFileError ? "1px" : "0px", // Add offset for drag-over outline
+							boxShadow: isTextAreaFocused
+								? `inset 0 -1px 0 ${mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
+								: "none",
 						}}
 						value={inputValue}
 					/>
 					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
-						<div className="text-xs absolute bottom-5 left-6.5 right-16 text-(--vscode-input-placeholderForeground)/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
-							Type @ for context, / for slash commands & workflows, hold shift to drag in files/images
+						<div className="text-xs absolute top-[17px] left-8 right-16 text-(--vscode-input-placeholderForeground)/45 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
+							message
 						</div>
 					)}
 					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
@@ -1424,8 +1428,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							style={{
 								position: "absolute",
 								paddingTop: 4,
-								bottom: 14,
-								left: 22,
+								bottom: 12,
+								left: 34,
 								right: 47, // (54 + 9) + 4 extra padding
 								zIndex: 2,
 							}}

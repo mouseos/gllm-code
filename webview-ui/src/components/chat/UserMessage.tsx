@@ -89,13 +89,20 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 
 	return (
 		<div
-			className="p-2.5 pr-1 my-1 text-badge-foreground rounded-xs"
+			className="my-0.5 py-1 pr-1 text-foreground"
 			onClick={handleClick}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" || e.key === " ") {
+					handleClick()
+				}
+			}}
+			role="button"
 			style={{
-				backgroundColor: isEditing ? "unset" : "var(--vscode-badge-background)",
+				backgroundColor: "transparent",
 				whiteSpace: "pre-line",
 				wordWrap: "break-word",
-			}}>
+			}}
+			tabIndex={0}>
 			{isEditing ? (
 				<>
 					<DynamicTextArea
@@ -145,7 +152,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 					</div>
 				</>
 			) : (
-				<span className="ph-no-capture text-sm" style={{ display: "block" }}>
+				<span className="ph-no-capture text-[13px]" style={{ display: "block" }}>
 					{highlightedText}
 				</span>
 			)}
@@ -188,7 +195,8 @@ const RestoreButton = forwardRef<HTMLButtonElement, RestoreButtonProps>(({ type,
 				fontSize: "9px",
 				cursor: "pointer",
 			}}
-			title={title}>
+			title={title}
+			type="button">
 			{label}
 		</button>
 	)

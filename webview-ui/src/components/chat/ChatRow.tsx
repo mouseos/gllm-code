@@ -96,6 +96,40 @@ interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 export const ProgressIndicator = () => <LoaderCircleIcon className="size-2 mr-2 animate-spin" />
 const InvisibleSpacer = () => <div aria-hidden className="h-px" />
 
+function getChatRowMarker(message: ClineMessage): string {
+	const type = message.type === "ask" ? message.ask : message.say
+
+	if (type === "api_req_finished" || type === "task_progress" || type === "hook_output_stream") {
+		return ""
+	}
+	if (type === "checkpoint_created") {
+		return "✓"
+	}
+	if (type === "user_feedback" || type === "user_feedback_diff") {
+		return ">"
+	}
+	if (type === "error" || type === "diff_error" || type === "clineignore_error" || type === "mistake_limit_reached") {
+		return "!"
+	}
+	if (message.type === "ask") {
+		return "?"
+	}
+	if (
+		type === "text" ||
+		type === "reasoning" ||
+		type === "api_req_started" ||
+		type === "completion_result" ||
+		type === "command" ||
+		type === "tool" ||
+		type === "use_mcp_server" ||
+		type === "use_subagents" ||
+		type === "subagent"
+	) {
+		return "⎿"
+	}
+	return "·"
+}
+
 const ChatRow = memo(
 	(props: ChatRowProps) => {
 		const { isLast, onHeightChange, message } = props
@@ -104,8 +138,17 @@ const ChatRow = memo(
 		const prevHeightRef = useRef(0)
 
 		const [chatrow, { height }] = useSize(
-			<div className="relative pt-2.5 px-4">
-				<ChatRowContent {...props} />
+			<div className="relative px-3 py-1.5 text-[13px] leading-5">
+				<div className="grid grid-cols-[22px_minmax(0,1fr)] gap-1.5">
+					<div
+						aria-hidden
+						className="select-none pt-[1px] text-right font-mono text-[13px] leading-5 text-description opacity-80">
+						{getChatRowMarker(message)}
+					</div>
+					<div className="min-w-0">
+						<ChatRowContent {...props} />
+					</div>
+				</div>
 			</div>,
 		)
 
