@@ -13,6 +13,14 @@
 			"label": "Google Gemini"
 		},
 		{
+			"value": "gemini-cli",
+			"label": "Gemini CLI (Code Assist)"
+		},
+		{
+			"value": "antigravity",
+			"label": "Antigravity"
+		},
+		{
 			"value": "openai",
 			"label": "OpenAI Compatible"
 		},

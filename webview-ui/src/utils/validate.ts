@@ -72,6 +72,9 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 				break
 			case "cline":
 				break
+			case "gemini-cli":
+			case "antigravity":
+				break
 			case "openai-codex":
 				// Authentication is handled via OAuth, not API key
 				// Validation happens at runtime in the handler

@@ -461,6 +461,8 @@ enum ApiProvider {
   NOUSRESEARCH = 39;
   OPENAI_CODEX = 40;
   WANDB = 41;
+  GEMINI_CLI = 42;
+  ANTIGRAVITY = 43;
 }
 
 enum ApiFormat {

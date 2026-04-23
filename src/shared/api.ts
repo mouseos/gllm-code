@@ -44,8 +44,35 @@ export type ApiProvider =
 	| "hicap"
 	| "nousResearch"
 	| "wandb"
+	| "gemini-cli"
+	| "antigravity"
 
-export const DEFAULT_API_PROVIDER = "gemini" as ApiProvider
+export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
+
+// ─── GLLM Multi-Account Types ────────────────────────────────────────────────
+
+export type GllmProviderType = "gemini" | "gemini-cli" | "antigravity"
+export type GllmAuthType = "oauth" | "apikey"
+
+export interface GllmAccount {
+	id: string
+	provider: GllmProviderType
+	authType: GllmAuthType
+	label: string
+	email?: string
+	projectId?: string
+	model: string
+	isMain: boolean
+	apiKey?: string
+}
+
+export interface GllmAccountToken {
+	accessToken?: string
+	refreshToken?: string
+	expiresAt?: number // milliseconds since epoch
+	clientId: string
+	clientSecret: string
+}
 
 export interface ApiHandlerOptions extends Partial<ApiHandlerSettings> {
 	ulid?: string // Used to identify the task in API requests
@@ -4921,5 +4948,99 @@ export const nousResearchModels = {
 		outputPrice: 0.2,
 		description:
 			"This incarnation of Hermes 4 balances scale and size. It handles complex reasoning tasks, while staying fast and cost effective. A versatile choice for many use cases.",
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// ─── Gemini CLI (Code Assist OAuth) ─────────────────────────────────────────
+
+export type GeminiCliModelId = keyof typeof geminiCliModels
+export const geminiCliDefaultModelId: GeminiCliModelId = "gemini-3.1-pro-preview"
+export const geminiCliModels = {
+	"gemini-3.1-pro-preview": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-3-pro-preview": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-3-flash-preview": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.5-pro": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.5-flash": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.5-flash-lite": {
+		maxTokens: 32768,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+} as const satisfies Record<string, ModelInfo>
+
+// ─── Antigravity (Daily Cloud Code) ─────────────────────────────────────────
+
+export type AntigravityModelId = keyof typeof antigravityModels
+export const antigravityDefaultModelId: AntigravityModelId = "gemini-3-pro-preview"
+export const antigravityModels = {
+	"gemini-3-pro-preview": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-3-flash-preview": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.5-pro": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	"gemini-2.5-flash": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
 	},
 } as const satisfies Record<string, ModelInfo>

@@ -1,10 +1,12 @@
 import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
+import { GllmAccountManager } from "@/services/auth/gllm/GllmAccountManager"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { ClineTool } from "@/shared/tools"
 import { AIhubmixHandler } from "./providers/aihubmix"
 import { AnthropicHandler } from "./providers/anthropic"
+import { AntigravityHandler } from "./providers/antigravity"
 import { AskSageHandler } from "./providers/asksage"
 import { BasetenHandler } from "./providers/baseten"
 import { AwsBedrockHandler } from "./providers/bedrock"
@@ -16,6 +18,7 @@ import { DifyHandler } from "./providers/dify"
 import { DoubaoHandler } from "./providers/doubao"
 import { FireworksHandler } from "./providers/fireworks"
 import { GeminiHandler } from "./providers/gemini"
+import { GeminiCliHandler } from "./providers/gemini-cli"
 import { GroqHandler } from "./providers/groq"
 import { HicapHandler } from "./providers/hicap"
 import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
@@ -178,6 +181,16 @@ function createHandlerForProvider(
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
 				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 				ulid: options.ulid,
+			})
+		case "gemini-cli":
+			return new GeminiCliHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+			})
+		case "antigravity":
+			return new AntigravityHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "openai-native":
 			return new OpenAiNativeHandler({
@@ -478,7 +491,19 @@ function createHandlerForProvider(
 export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): ApiHandler {
 	const { planModeApiProvider, actModeApiProvider, ...options } = configuration
 
-	const apiProvider = mode === "plan" ? planModeApiProvider : actModeApiProvider
+	// Override with primary gllm account if available
+	const gllmAccount = GllmAccountManager.getInstance().getPrimaryAccount()
+	const apiProvider = gllmAccount ? gllmAccount.provider : mode === "plan" ? planModeApiProvider : actModeApiProvider
+	if (gllmAccount) {
+		if (mode === "plan") {
+			options.planModeApiModelId = gllmAccount.model
+		} else {
+			options.actModeApiModelId = gllmAccount.model
+		}
+		if (gllmAccount.provider === "gemini" && gllmAccount.apiKey) {
+			options.geminiApiKey = gllmAccount.apiKey
+		}
+	}
 
 	// Validate thinking budget tokens against model's maxTokens to prevent API errors
 	// wrapped in a try-catch for safety, but this should never throw

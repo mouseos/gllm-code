@@ -153,8 +153,7 @@ const ApiOptions = ({
 			providers = providers.filter((option) => remoteProviders.includes(option.value))
 		}
 
-		// GLLM Code: only show Gemini API
-		providers = providers.filter((option) => option.value === "gemini")
+		providers = providers.filter((option) => ["gemini", "gemini-cli", "antigravity"].includes(option.value))
 
 		return providers
 	}, [remoteConfigSettings])

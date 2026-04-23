@@ -3,6 +3,8 @@ import {
 	ApiProvider,
 	anthropicDefaultModelId,
 	anthropicModels,
+	antigravityDefaultModelId,
+	antigravityModels,
 	askSageDefaultModelId,
 	askSageModels,
 	basetenDefaultModelId,
@@ -19,6 +21,8 @@ import {
 	doubaoModels,
 	fireworksDefaultModelId,
 	fireworksModels,
+	geminiCliDefaultModelId,
+	geminiCliModels,
 	geminiDefaultModelId,
 	geminiModels,
 	groqDefaultModelId,
@@ -98,6 +102,10 @@ export function getModelsForProvider(
 			return vertexModels
 		case "gemini":
 			return geminiModels
+		case "gemini-cli":
+			return geminiCliModels
+		case "antigravity":
+			return antigravityModels
 		case "openai-native":
 			return openAiNativeModels
 		case "openai-codex":
@@ -232,6 +240,10 @@ export function normalizeApiConfiguration(
 			return getProviderData(vertexModels, vertexDefaultModelId)
 		case "gemini":
 			return getProviderData(geminiModels, geminiDefaultModelId)
+		case "gemini-cli":
+			return getProviderData(geminiCliModels, geminiCliDefaultModelId)
+		case "antigravity":
+			return getProviderData(antigravityModels, antigravityDefaultModelId)
 		case "openai-native":
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
 		case "openai-codex":
@@ -824,6 +836,8 @@ export async function syncModeConfigurations(
 		case "claude-code":
 		case "vertex":
 		case "gemini":
+		case "gemini-cli":
+		case "antigravity":
 		case "openai-native":
 		case "openai-codex":
 		case "deepseek":

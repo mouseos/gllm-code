@@ -328,6 +328,10 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.NOUSRESEARCH
 		case "openai-codex":
 			return ProtoApiProvider.OPENAI_CODEX
+		case "gemini-cli":
+			return ProtoApiProvider.GEMINI_CLI
+		case "antigravity":
+			return ProtoApiProvider.ANTIGRAVITY
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
@@ -420,6 +424,10 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "nousResearch"
 		case ProtoApiProvider.OPENAI_CODEX:
 			return "openai-codex"
+		case ProtoApiProvider.GEMINI_CLI:
+			return "gemini-cli"
+		case ProtoApiProvider.ANTIGRAVITY:
+			return "antigravity"
 		default:
 			return "anthropic"
 	}

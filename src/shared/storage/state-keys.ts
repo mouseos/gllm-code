@@ -2,6 +2,7 @@ import { AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/Au
 import {
 	ApiProvider,
 	DEFAULT_API_PROVIDER,
+	GllmAccount,
 	LiteLLMModelInfo,
 	ModelInfo,
 	type OcaModelInfo,
@@ -90,6 +91,8 @@ const GLOBAL_STATE_FIELDS = {
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
 	// Path to worktree that should auto-open Cline sidebar when launched
 	worktreeAutoOpenPath: { default: undefined as string | undefined },
+	// GLLM multi-account list (metadata only, tokens stored in secrets)
+	gllmAccounts: { default: [] as GllmAccount[] },
 } satisfies FieldDefinitions
 
 // Fields that map directly to ApiHandlerOptions in @shared/api.ts
@@ -344,6 +347,7 @@ const SECRETS_KEYS = [
 	"mcpOAuthSecrets",
 	"openai-codex-oauth-credentials", // JSON blob containing OAuth tokens for OpenAI Codex (ChatGPT subscription)
 	"wandbApiKey",
+	"gllmAccountTokens", // JSON map of accountId → GllmAccountToken
 ] as const
 
 // WARNING, these are not ALL of the local state keys in practice. For example, FileContextTracker

@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+// Service for GLLM multi-account management (Gemini CLI + Antigravity)
+service GllmAccountService {
+  // Start OAuth login flow for a provider (opens browser)
+  rpc gllmLoginClicked(StringRequest) returns (Empty);
+
+  // Import credentials from ~/.gemini/oauth_creds.json
+  rpc gllmImportGeminiCli(EmptyRequest) returns (GllmImportResult);
+
+  // Remove an account by ID
+  rpc gllmRemoveAccount(StringRequest) returns (Empty);
+
+  // Set an account as the main account
+  rpc gllmSetMainAccount(StringRequest) returns (Empty);
+
+  // Update model for an account
+  rpc gllmUpdateAccountModel(GllmUpdateModelRequest) returns (Empty);
+
+  // Update API key for a Gemini API account
+  rpc gllmUpdateAccountApiKey(GllmUpdateModelRequest) returns (Empty);
+
+  // Subscribe to account list updates
+  rpc gllmSubscribeToAccounts(EmptyRequest) returns (stream GllmAccountList);
+}
+
+message GllmAccount {
+  string id = 1;
+  string provider = 2;
+  string auth_type = 3;
+  string label = 4;
+  optional string email = 5;
+  optional string project_id = 6;
+  string model = 7;
+  bool is_main = 8;
+  optional string api_key = 9;
+}
+
+message GllmAccountList {
+  repeated GllmAccount accounts = 1;
+}
+
+message GllmImportResult {
+  bool success = 1;
+  optional string message = 2;
+}
+
+message GllmUpdateModelRequest {
+  string account_id = 1;
+  string model = 2;
+}
