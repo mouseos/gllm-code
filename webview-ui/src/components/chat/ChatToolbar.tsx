@@ -47,6 +47,8 @@ interface ModelSection {
 	models: ModelEntry[]
 }
 
+type QuotaBucket = NonNullable<ProtoGllmAccount["quotaBuckets"]>[number]
+
 const AUTO_MODELS: ModelEntry[] = [
 	{ id: "auto pro", label: "auto pro", description: "Best pro model with fallback" },
 	{ id: "auto flash", label: "auto flash", description: "Best flash model with fallback" },
@@ -137,6 +139,105 @@ function accountSupportsModel(account: ProtoGllmAccount, modelId: string): boole
 	return knownModels.has(modelId)
 }
 
+function getQuotaBucketsForModel(account: ProtoGllmAccount, modelId: string): QuotaBucket[] {
+	const buckets = account.quotaBuckets ?? []
+	if (modelId === "auto") {
+		return buckets
+	}
+	if (modelId === "auto pro") {
+		return buckets.filter((bucket) => bucket.modelId.toLowerCase().includes("pro"))
+	}
+	if (modelId === "auto flash") {
+		return buckets.filter((bucket) => bucket.modelId.toLowerCase().includes("flash"))
+	}
+	return buckets.filter((bucket) => bucket.modelId === modelId)
+}
+
+function pickWorstQuotaBucket(buckets: QuotaBucket[]): QuotaBucket | undefined {
+	return [...buckets].sort((left, right) => {
+		const leftRemaining = left.remainingFraction ?? Number.POSITIVE_INFINITY
+		const rightRemaining = right.remainingFraction ?? Number.POSITIVE_INFINITY
+		if (leftRemaining !== rightRemaining) {
+			return leftRemaining - rightRemaining
+		}
+		const leftReset = Date.parse(left.resetTime ?? "")
+		const rightReset = Date.parse(right.resetTime ?? "")
+		return (
+			(Number.isNaN(leftReset) ? Number.POSITIVE_INFINITY : leftReset) -
+			(Number.isNaN(rightReset) ? Number.POSITIVE_INFINITY : rightReset)
+		)
+	})[0]
+}
+
+function quotaFractionToPercent(fraction: number): number {
+	return fraction <= 1.05 ? fraction * 100 : fraction
+}
+
+function formatQuotaPercent(percent: number): string {
+	if (percent >= 10) {
+		return `${Math.round(percent)}%`
+	}
+	return `${Math.round(percent * 10) / 10}%`
+}
+
+function formatResetTime(resetTime?: string): string {
+	if (!resetTime) {
+		return ""
+	}
+	const resetAt = new Date(resetTime)
+	if (Number.isNaN(resetAt.getTime())) {
+		return ""
+	}
+	return `, reset ${resetAt.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
+}
+
+function getProviderQuotaLabel(accounts: ProtoGllmAccount[], modelId: string): string {
+	const groups = new Map<string, { percent: number; hasQuota: boolean }>()
+
+	for (const account of accounts) {
+		if (!accountSupportsModel(account, modelId)) {
+			continue
+		}
+		const badge = getProviderBadge(account.provider)
+		const group = groups.get(badge) ?? { percent: 0, hasQuota: false }
+		const bucket = pickWorstQuotaBucket(getQuotaBucketsForModel(account, modelId))
+		if (bucket?.remainingFraction !== undefined) {
+			group.percent += quotaFractionToPercent(bucket.remainingFraction)
+			group.hasQuota = true
+		}
+		groups.set(badge, group)
+	}
+
+	return [...groups.entries()]
+		.map(([badge, group]) => (group.hasQuota ? `${badge} ${formatQuotaPercent(group.percent)}` : badge))
+		.join(" ")
+}
+
+function getAccountQuotaSummary(account: ProtoGllmAccount): string {
+	switch (account.quotaStatus) {
+		case "ok": {
+			const bucket = pickWorstQuotaBucket(getQuotaBucketsForModel(account, account.model))
+			if (!bucket) {
+				return "Quota no bucket for selected model"
+			}
+			if (bucket.remainingFraction === undefined) {
+				return `Quota bucket found${formatResetTime(bucket.resetTime)}`
+			}
+			return `Quota ${formatQuotaPercent(quotaFractionToPercent(bucket.remainingFraction))} left${formatResetTime(bucket.resetTime)}`
+		}
+		case "empty":
+			return "Quota empty"
+		case "unsupported":
+			return "Quota unsupported for Gemini API"
+		case "auth_error":
+			return `Quota auth error${account.quotaError ? `: ${account.quotaError}` : ""}`
+		case "fetch_error":
+			return `Quota fetch failed${account.quotaError ? `: ${account.quotaError}` : ""}`
+		default:
+			return "Quota loading"
+	}
+}
+
 function mergeModelEntries(entries: ModelEntry[]): ModelEntry[] {
 	const merged = new Map<string, ModelEntry>()
 
@@ -173,7 +274,7 @@ function getModelSections(accounts: ProtoGllmAccount[]): ModelSection[] {
 		models: AUTO_MODELS.map((entry) => ({
 			...entry,
 			providers: providerBadges,
-			description: providerBadges.join(" "),
+			description: getProviderQuotaLabel(accounts, entry.id) || providerBadges.join(" "),
 		})),
 	}
 
@@ -210,7 +311,10 @@ function getModelSections(accounts: ProtoGllmAccount[]): ModelSection[] {
 		autoSection,
 		{
 			header: "Models",
-			models: mergeModelEntries(mergedEntries),
+			models: mergeModelEntries(mergedEntries).map((entry) => ({
+				...entry,
+				description: getProviderQuotaLabel(accounts, entry.id) || entry.description,
+			})),
 		},
 	]
 }
@@ -480,6 +584,7 @@ const UsageSummaryMenu: React.FC<{
 								</span>
 								<span>{usage ? `$${usage.totalCost.toFixed(4)}` : "$0.0000"}</span>
 							</div>
+							<div style={{ color: SECTION_FG }}>{getAccountQuotaSummary(account)}</div>
 						</div>
 					)
 				})

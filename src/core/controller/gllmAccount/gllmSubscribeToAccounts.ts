@@ -17,6 +17,10 @@ function toProtoAccount(account: GllmAccount): ProtoGllmAccount {
 		isMain: account.isMain,
 		apiKey: account.apiKey,
 		availableModels: account.availableModels ?? [],
+		quotaBuckets: account.quotaBuckets ?? [],
+		quotaStatus: account.quotaStatus,
+		quotaError: account.quotaError,
+		quotaUpdatedAt: account.quotaUpdatedAt,
 	})
 }
 

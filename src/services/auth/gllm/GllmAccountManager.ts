@@ -3,7 +3,7 @@ import * as fs from "node:fs"
 import * as http from "node:http"
 import * as os from "node:os"
 import * as path from "node:path"
-import { GllmAccount, GllmAccountToken, GllmProviderType } from "@shared/api"
+import { GllmAccount, GllmAccountToken, GllmProviderType, GllmQuotaBucket, GllmQuotaStatus } from "@shared/api"
 import { StateManager } from "@/core/storage/StateManager"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -83,6 +83,8 @@ export class GllmAccountManager {
 	private accountUpdateListeners = new Set<() => void>()
 	private dynamicModelRefreshAt = new Map<string, number>()
 	private dynamicModelRefreshPromises = new Map<string, Promise<string[]>>()
+	private quotaRefreshAt = new Map<string, number>()
+	private quotaRefreshPromises = new Map<string, Promise<GllmQuotaBucket[]>>()
 
 	static getInstance(): GllmAccountManager {
 		if (!GllmAccountManager.instance) {
@@ -270,7 +272,12 @@ export class GllmAccountManager {
 		const accounts = this.getAccounts().filter(
 			(account) => account.provider === "antigravity" || account.provider === "gemini" || account.provider === "gemini-cli",
 		)
-		await Promise.allSettled(accounts.map((account) => this.refreshAvailableModels(account.id)))
+		await Promise.allSettled(
+			accounts.map(async (account) => {
+				await this.refreshAvailableModels(account.id)
+				await this.refreshQuotaMetadata(account.id)
+			}),
+		)
 	}
 
 	async refreshAvailableModels(accountId: string, accessToken?: string, force = false): Promise<string[]> {
@@ -322,6 +329,105 @@ export class GllmAccountManager {
 
 		this.dynamicModelRefreshPromises.set(accountId, refreshPromise)
 		return refreshPromise
+	}
+
+	async refreshQuotaMetadata(accountId: string, accessToken?: string, force = false): Promise<GllmQuotaBucket[]> {
+		const accounts = this.getAccounts()
+		const account = accounts.find((candidate) => candidate.id === accountId)
+		if (!account) {
+			throw new Error(`Account not found: ${accountId}`)
+		}
+		if (account.provider === "gemini") {
+			this.quotaRefreshAt.set(accountId, Date.now())
+			await this.updateAccountQuota(accountId, [], "unsupported")
+			return []
+		}
+
+		const lastRefreshAt = this.quotaRefreshAt.get(accountId) ?? 0
+		if (!force && lastRefreshAt > Date.now() - DYNAMIC_MODELS_REFRESH_INTERVAL_MS) {
+			return account.quotaBuckets ?? []
+		}
+
+		const inFlight = this.quotaRefreshPromises.get(accountId)
+		if (inFlight) {
+			return inFlight
+		}
+
+		const refreshPromise = this.loadQuotaMetadata(account, accessToken)
+			.then(async (quotaBuckets) => {
+				this.quotaRefreshAt.set(accountId, Date.now())
+				await this.updateAccountQuota(accountId, quotaBuckets, quotaBuckets.length > 0 ? "ok" : "empty")
+				return quotaBuckets
+			})
+			.catch(async (error) => {
+				const status = quotaStatusForError(error)
+				const quotaError = shortErrorMessage(error)
+				this.quotaRefreshAt.set(accountId, Date.now())
+				await this.updateAccountQuota(accountId, [], status, quotaError)
+				Logger.warn(`[GllmAccountManager] Failed to fetch quota for ${accountId}: ${quotaError}`)
+				return []
+			})
+			.finally(() => {
+				this.quotaRefreshPromises.delete(accountId)
+			})
+
+		this.quotaRefreshPromises.set(accountId, refreshPromise)
+		return refreshPromise
+	}
+
+	private async updateAccountQuota(
+		accountId: string,
+		quotaBuckets: GllmQuotaBucket[],
+		quotaStatus: GllmQuotaStatus,
+		quotaError?: string,
+	): Promise<void> {
+		const latestAccounts = this.getAccounts()
+		const latestAccount = latestAccounts.find((candidate) => candidate.id === accountId)
+		if (!latestAccount) {
+			return
+		}
+
+		const quotaUpdatedAt = Date.now()
+		const hasChanged =
+			latestAccount.quotaStatus !== quotaStatus ||
+			latestAccount.quotaError !== quotaError ||
+			!sameQuotaBuckets(latestAccount.quotaBuckets, quotaBuckets)
+
+		if (!hasChanged) {
+			return
+		}
+
+		const updatedAccounts = latestAccounts.map((candidate) =>
+			candidate.id === accountId
+				? {
+						...candidate,
+						quotaBuckets,
+						quotaStatus,
+						quotaError,
+						quotaUpdatedAt,
+					}
+				: candidate,
+		)
+		await this.saveAccounts(updatedAccounts)
+	}
+
+	private async loadQuotaMetadata(account: GllmAccount, accessToken?: string): Promise<GllmQuotaBucket[]> {
+		const token = accessToken ?? (await this.getAccessToken(account.id))
+		const projectId = account.projectId ?? (await this.refreshProjectId(account.id, token))
+
+		if (account.provider === "gemini-cli") {
+			return loadCodeAssistQuotaRequest(projectId, token)
+		}
+
+		const models = await loadAvailableModelsRequest(projectId, token)
+		return Object.entries(models)
+			.map(([modelId, model]) => ({
+				modelId,
+				remainingFraction: model.quotaInfo?.remainingFraction,
+				resetTime: model.quotaInfo?.resetTime,
+				tokenType: "requests",
+			}))
+			.filter((bucket) => bucket.remainingFraction !== undefined || bucket.resetTime !== undefined)
 	}
 
 	private async loadAvailableModels(account: GllmAccount, accessToken?: string): Promise<string[]> {
@@ -410,9 +516,10 @@ export class GllmAccountManager {
 		await this.saveAccounts(updated)
 		try {
 			await this.refreshAvailableModels(accountId, undefined, true)
+			await this.refreshQuotaMetadata(accountId, undefined, true)
 		} catch (error) {
 			Logger.warn(
-				`[GllmAccountManager] Failed to fetch Gemini API models for ${accountId}: ${
+				`[GllmAccountManager] Failed to refresh Gemini API metadata for ${accountId}: ${
 					error instanceof Error ? error.message : String(error)
 				}`,
 			)
@@ -556,12 +663,13 @@ export class GllmAccountManager {
 
 		this.tokenCache.set(id, { token: tokens.access_token, expiresAt: Date.now() + tokens.expires_in * 1000 })
 
-		if (provider === "antigravity") {
+		if (provider === "antigravity" || provider === "gemini-cli") {
 			try {
 				await this.refreshAvailableModels(id, tokens.access_token, true)
+				await this.refreshQuotaMetadata(id, tokens.access_token, true)
 			} catch (error) {
 				Logger.warn(
-					`[GllmAccountManager] Failed to fetch Antigravity models for ${id}: ${
+					`[GllmAccountManager] Failed to fetch ${provider} metadata for ${id}: ${
 						error instanceof Error ? error.message : String(error)
 					}`,
 				)
@@ -614,6 +722,17 @@ export class GllmAccountManager {
 
 			await this.saveAccounts([...accounts, newAccount])
 			await this.saveTokens(storedTokens)
+
+			try {
+				await this.refreshAvailableModels(id, raw.access_token, true)
+				await this.refreshQuotaMetadata(id, raw.access_token, true)
+			} catch (error) {
+				Logger.warn(
+					`[GllmAccountManager] Failed to fetch imported Gemini CLI metadata for ${id}: ${
+						error instanceof Error ? error.message : String(error)
+					}`,
+				)
+			}
 
 			return { success: true, message: `Imported Gemini CLI credentials from ${geminiPath}` }
 		} catch (err) {
@@ -733,6 +852,21 @@ function sameStringArray(left?: string[], right?: string[]): boolean {
 	return (left ?? []).every((value, index) => value === right?.[index])
 }
 
+function sameQuotaBuckets(left?: GllmQuotaBucket[], right?: GllmQuotaBucket[]): boolean {
+	if ((left?.length ?? 0) !== (right?.length ?? 0)) {
+		return false
+	}
+	return (left ?? []).every((value, index) => {
+		const other = right?.[index]
+		return (
+			value.modelId === other?.modelId &&
+			value.remainingFraction === other.remainingFraction &&
+			value.resetTime === other.resetTime &&
+			value.tokenType === other.tokenType
+		)
+	})
+}
+
 function orderModels(models: string[], preference: string[]): string[] {
 	const seen = new Set<string>()
 	const ordered: string[] = []
@@ -798,6 +932,11 @@ async function loadGeminiApiModelsRequest(apiKey: string): Promise<string[]> {
 }
 
 async function loadCodeAssistQuotaModelsRequest(projectId: string, accessToken: string): Promise<string[]> {
+	const buckets = await loadCodeAssistQuotaRequest(projectId, accessToken)
+	return [...new Set(buckets.map((bucket) => bucket.modelId))]
+}
+
+async function loadCodeAssistQuotaRequest(projectId: string, accessToken: string): Promise<GllmQuotaBucket[]> {
 	const response = await fetch(RETRIEVE_USER_QUOTA_URL, {
 		method: "POST",
 		headers: {
@@ -815,14 +954,46 @@ async function loadCodeAssistQuotaModelsRequest(projectId: string, accessToken: 
 	const data = (await response.json()) as {
 		buckets?: Array<{
 			modelId?: string
+			remainingFraction?: number
+			resetTime?: string
+			tokenType?: string
 		}>
 	}
 
-	return [...new Set((data.buckets ?? []).map((bucket) => bucket.modelId).filter((modelId): modelId is string => !!modelId))]
+	return (data.buckets ?? [])
+		.filter(
+			(bucket): bucket is { modelId: string; remainingFraction?: number; resetTime?: string; tokenType?: string } =>
+				!!bucket.modelId,
+		)
+		.map((bucket) => ({
+			modelId: bucket.modelId,
+			remainingFraction: bucket.remainingFraction,
+			resetTime: bucket.resetTime,
+			tokenType: bucket.tokenType,
+		}))
 }
 
 function getAntigravityUserAgent(): string {
 	const version = "1.15.8"
 	const platform = process.platform === "darwin" ? "macos" : process.platform
 	return `antigravity/${version} ${platform}/${process.arch}`
+}
+
+function quotaStatusForError(error: unknown): GllmQuotaStatus {
+	const message = shortErrorMessage(error).toLowerCase()
+	if (
+		message.includes("token refresh failed") ||
+		message.includes("no refresh token") ||
+		message.includes("no token stored") ||
+		message.includes("invalid_grant") ||
+		message.includes("unauthorized")
+	) {
+		return "auth_error"
+	}
+	return "fetch_error"
+}
+
+function shortErrorMessage(error: unknown): string {
+	const message = error instanceof Error ? error.message : String(error)
+	return message.replace(/\s+/g, " ").slice(0, 180)
 }

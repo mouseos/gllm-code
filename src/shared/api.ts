@@ -53,6 +53,14 @@ export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
 export type GllmProviderType = "gemini" | "gemini-cli" | "antigravity"
 export type GllmAuthType = "oauth" | "apikey"
+export type GllmQuotaStatus = "ok" | "empty" | "unsupported" | "auth_error" | "fetch_error"
+
+export interface GllmQuotaBucket {
+	modelId: string
+	remainingFraction?: number
+	resetTime?: string
+	tokenType?: string
+}
 
 export interface GllmAccount {
 	id: string
@@ -65,6 +73,10 @@ export interface GllmAccount {
 	isMain: boolean
 	apiKey?: string
 	availableModels?: string[]
+	quotaBuckets?: GllmQuotaBucket[]
+	quotaStatus?: GllmQuotaStatus
+	quotaError?: string
+	quotaUpdatedAt?: number
 }
 
 export interface GllmAccountToken {

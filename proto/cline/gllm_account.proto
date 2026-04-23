@@ -46,6 +46,17 @@ message GllmAccount {
   bool is_main = 8;
   optional string api_key = 9;
   repeated string available_models = 10;
+  repeated GllmQuotaBucket quota_buckets = 11;
+  optional string quota_status = 12;
+  optional string quota_error = 13;
+  optional int64 quota_updated_at = 14;
+}
+
+message GllmQuotaBucket {
+  string model_id = 1;
+  optional double remaining_fraction = 2;
+  optional string reset_time = 3;
+  optional string token_type = 4;
 }
 
 message GllmAccountList {
