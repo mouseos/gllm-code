@@ -1,0 +1,159 @@
+{
+	"chat": {
+		"placeholder_task": "Type your task here...",
+		"placeholder_message": "Type a message...",
+		"plan_mode_tooltip": "In Plan mode, GLLM Code will gather information to architect a plan",
+		"act_mode_tooltip": "In Act mode, GLLM Code will complete the task immediately",
+		"add_context": "Add Context",
+		"add_files_images": "Add Files & Images",
+		"open_api_settings": "Open API Settings",
+		"helper_text": "Type @ for context, / for slash commands & workflows, hold shift to drag in files/images"
+	},
+	"navbar": {
+		"new_task": "New Task",
+		"mcp_servers": "MCP Servers",
+		"history": "History",
+		"account": "Account",
+		"settings": "Settings"
+	},
+	"settings": {
+		"title": "Settings",
+		"preferred_language": "Preferred Language",
+		"preferred_language_description": "The language that GLLM Code should use for communication.",
+		"done": "Done",
+		"save": "Save",
+		"cancel": "Cancel",
+		"tabs": {
+			"api_configuration": "API Configuration",
+			"features": "Features",
+			"feature_settings": "Feature Settings",
+			"browser": "Browser",
+			"browser_settings": "Browser Settings",
+			"general": "General",
+			"general_settings": "General Settings",
+			"remote_config": "Remote Config",
+			"remotely_configured": "Remotely configured fields",
+			"about": "About",
+			"about_cline": "About GLLM Code",
+			"debug": "Debug",
+			"debug_tools": "Debug Tools"
+		},
+		"sections": {
+			"agent": "Agent",
+			"editor": "Editor",
+			"experimental": "Experimental",
+			"advanced": "Advanced",
+			"reminder_interval": "Reminder Interval (1-10)",
+			"mcp_display_mode": "MCP Display Mode",
+			"mcp_display_mode_desc": "Controls how MCP responses are displayed",
+			"mcp_plain": "Plain Text",
+			"mcp_rich": "Rich Display",
+			"mcp_markdown": "Markdown",
+			"remote_locked": "This setting is managed by your organization's remote configuration"
+		}
+	},
+	"general_settings": {
+		"telemetry_label": "Allow error and usage reporting",
+		"telemetry_desc": "Help improve GLLM Code by sending usage data and error reports. No code, prompts, or personal information are ever sent. See our",
+		"telemetry_overview": "telemetry overview",
+		"privacy_policy": "privacy policy",
+		"telemetry_details": "for more details."
+	},
+	"features": {
+		"subagents": {
+			"label": "Subagents",
+			"description": "Let GLLM Code run focused subagents in parallel to explore the codebase for you."
+		},
+		"native-tool-call": {
+			"label": "Native Tool Call",
+			"description": "Use native function calling when available"
+		},
+		"parallel-tool-calling": {
+			"label": "Parallel Tool Calling",
+			"description": "Execute multiple tool calls simultaneously"
+		},
+		"strict-plan-mode": {
+			"label": "Strict Plan Mode",
+			"description": "Prevents file edits while in Plan mode"
+		},
+		"auto-compact": {
+			"label": "Auto Compact",
+			"description": "Automatically compress conversation history."
+		},
+		"focus-chain": {
+			"label": "Focus Chain",
+			"description": "Maintain context focus across interactions"
+		},
+		"show-feature-tips": {
+			"label": "Feature Tips",
+			"description": "Show rotating tips during the thinking phase to help you discover GLLM Code features."
+		},
+		"background-edit": {
+			"label": "Background Edit",
+			"description": "Allow edits without stealing editor focus"
+		},
+		"checkpoints": {
+			"label": "Checkpoints",
+			"description": "Save progress at key points for easy rollback"
+		},
+		"cline-web-tools": {
+			"label": "Web Tools",
+			"description": "Access web browsing and search capabilities"
+		},
+		"worktrees": {
+			"label": "Worktrees",
+			"description": "Enables git worktree management for running parallel tasks."
+		},
+		"yolo": {
+			"label": "Yolo Mode",
+			"description": "Execute tasks without user's confirmation. Auto-switches from Plan to Act mode and disables the ask question tool. Use with extreme caution."
+		},
+		"double-check-completion": {
+			"label": "Double-Check Completion",
+			"description": "Rejects the first completion attempt and asks the model to re-verify its work against the original task requirements before accepting."
+		},
+		"lazy-teammate": {
+			"label": "Lazy Teammate Mode",
+			"description": "Sometimes GLLM Code just isn't feeling it today. For entertainment purposes only."
+		},
+		"hooks": {
+			"label": "Hooks",
+			"description": "Enable lifecycle and tool hooks during task execution."
+		}
+	},
+	"history": {
+		"title": "History",
+		"search_placeholder": "Fuzzy search history...",
+		"clear_search": "Clear search",
+		"select_all": "Select All",
+		"select_none": "Select None",
+		"delete_selected": "Delete {{count}} Selected",
+		"delete_all": "Delete All History",
+		"today": "Today",
+		"older": "Older",
+		"filters": {
+			"newest": "Newest",
+			"oldest": "Oldest",
+			"most_expensive": "Most Expensive",
+			"most_tokens": "Most Tokens",
+			"most_relevant": "Most Relevant",
+			"workspace_only": "Workspace Only",
+			"favorites_only": "Favorites Only"
+		}
+	},
+	"about": {
+		"version": "GLLM Code v{{version}}",
+		"description": "An AI assistant that can use your CLI and Editor. GLLM Code can handle complex software development tasks step-by-step with tools that let it create & edit files, explore large projects, use the browser, and execute terminal commands (after you grant permission).",
+		"community_support": "Community & Support",
+		"development": "Development",
+		"resources": "Resources"
+	},
+	"common": {
+		"back": "Back",
+		"next": "Next",
+		"done": "Done",
+		"cancel": "Cancel",
+		"save": "Save",
+		"loading": "Loading..."
+	}
+}

@@ -1,0 +1,159 @@
+{
+	"chat": {
+		"placeholder_task": "タスクを入力してください...",
+		"placeholder_message": "メッセージを入力...",
+		"plan_mode_tooltip": "プランモードでは、GLLM Codeが情報を収集して計画を立案します",
+		"act_mode_tooltip": "アクトモードでは、GLLM Codeがタスクをすぐに実行します",
+		"add_context": "コンテキストを追加",
+		"add_files_images": "ファイル・画像を追加",
+		"open_api_settings": "API設定を開く",
+		"helper_text": "@ でコンテキスト、/ でスラッシュコマンド、Shift を押しながらファイル・画像をドラッグ"
+	},
+	"navbar": {
+		"new_task": "新しいタスク",
+		"mcp_servers": "MCPサーバー",
+		"history": "履歴",
+		"account": "アカウント",
+		"settings": "設定"
+	},
+	"settings": {
+		"title": "設定",
+		"preferred_language": "表示言語",
+		"preferred_language_description": "GLLM Codeが使用する言語を選択してください。",
+		"done": "完了",
+		"save": "保存",
+		"cancel": "キャンセル",
+		"tabs": {
+			"api_configuration": "API設定",
+			"features": "機能",
+			"feature_settings": "機能設定",
+			"browser": "ブラウザ",
+			"browser_settings": "ブラウザ設定",
+			"general": "一般",
+			"general_settings": "一般設定",
+			"remote_config": "リモート設定",
+			"remotely_configured": "リモートで管理されている設定",
+			"about": "バージョン情報",
+			"about_cline": "GLLM Codeについて",
+			"debug": "デバッグ",
+			"debug_tools": "デバッグツール"
+		},
+		"sections": {
+			"agent": "エージェント",
+			"editor": "エディタ",
+			"experimental": "実験的機能",
+			"advanced": "高度な設定",
+			"reminder_interval": "リマインド間隔 (1〜10)",
+			"mcp_display_mode": "MCPの表示モード",
+			"mcp_display_mode_desc": "MCPレスポンスの表示方法を設定します",
+			"mcp_plain": "プレーンテキスト",
+			"mcp_rich": "リッチ表示",
+			"mcp_markdown": "Markdown",
+			"remote_locked": "この設定は組織のリモート設定によって管理されています"
+		}
+	},
+	"general_settings": {
+		"telemetry_label": "エラーと使用状況のレポートを許可する",
+		"telemetry_desc": "使用状況データとエラーレポートを送信してGLLM Codeの改善にご協力ください。コード、プロンプト、個人情報は一切送信されません。詳細は",
+		"telemetry_overview": "テレメトリーの概要",
+		"privacy_policy": "プライバシーポリシー",
+		"telemetry_details": "をご覧ください。"
+	},
+	"features": {
+		"subagents": {
+			"label": "サブエージェント",
+			"description": "GLLM Codeがコードベースを並列探索するためのサブエージェントを実行します。"
+		},
+		"native-tool-call": {
+			"label": "ネイティブツール呼び出し",
+			"description": "利用可能な場合はネイティブの関数呼び出しを使用します"
+		},
+		"parallel-tool-calling": {
+			"label": "並列ツール呼び出し",
+			"description": "複数のツール呼び出しを同時に実行します"
+		},
+		"strict-plan-mode": {
+			"label": "厳格なプランモード",
+			"description": "プランモード中はファイル編集を禁止します"
+		},
+		"auto-compact": {
+			"label": "自動圧縮",
+			"description": "会話履歴を自動的に圧縮します。"
+		},
+		"focus-chain": {
+			"label": "フォーカスチェーン",
+			"description": "インタラクション間でコンテキストのフォーカスを維持します"
+		},
+		"show-feature-tips": {
+			"label": "機能のヒント",
+			"description": "思考フェーズ中にGLLM Codeの機能を発見するためのヒントをローテーション表示します。"
+		},
+		"background-edit": {
+			"label": "バックグラウンド編集",
+			"description": "エディタのフォーカスを奪わずに編集を許可します"
+		},
+		"checkpoints": {
+			"label": "チェックポイント",
+			"description": "重要な時点で進捗を保存して簡単にロールバックできます"
+		},
+		"cline-web-tools": {
+			"label": "Webツール",
+			"description": "Webブラウジングと検索機能を利用します"
+		},
+		"worktrees": {
+			"label": "ワークツリー",
+			"description": "並列タスク実行のためのgitワークツリー管理を有効にします。"
+		},
+		"yolo": {
+			"label": "Yoloモード",
+			"description": "ユーザーの確認なしにタスクを実行します。プランモードからアクトモードに自動切り替えし、質問ツールを無効にします。十分に注意して使用してください。"
+		},
+		"double-check-completion": {
+			"label": "完了の二重確認",
+			"description": "最初の完了試行を拒否し、元のタスク要件に対して作業を再検証するようモデルに求めてから承認します。"
+		},
+		"lazy-teammate": {
+			"label": "怠け者モード",
+			"description": "GLLM Codeがやる気のない日もあります。エンターテインメント目的のみ。"
+		},
+		"hooks": {
+			"label": "フック",
+			"description": "タスク実行中のライフサイクルとツールフックを有効にします。"
+		}
+	},
+	"history": {
+		"title": "履歴",
+		"search_placeholder": "履歴をあいまい検索...",
+		"clear_search": "検索をクリア",
+		"select_all": "すべて選択",
+		"select_none": "選択解除",
+		"delete_selected": "選択した{{count}}件を削除",
+		"delete_all": "すべての履歴を削除",
+		"today": "今日",
+		"older": "以前",
+		"filters": {
+			"newest": "新しい順",
+			"oldest": "古い順",
+			"most_expensive": "コスト高い順",
+			"most_tokens": "トークン多い順",
+			"most_relevant": "関連性順",
+			"workspace_only": "このワークスペースのみ",
+			"favorites_only": "お気に入りのみ"
+		}
+	},
+	"about": {
+		"version": "GLLM Code v{{version}}",
+		"description": "CLIとエディタを活用するAIアシスタント。GLLM Codeはファイルの作成・編集、大規模プロジェクトの探索、ブラウザの使用、ターミナルコマンドの実行（許可後）など様々なツールを使って複雑な開発タスクをステップバイステップで処理します。",
+		"community_support": "コミュニティ & サポート",
+		"development": "開発",
+		"resources": "リソース"
+	},
+	"common": {
+		"back": "戻る",
+		"next": "次へ",
+		"done": "完了",
+		"cancel": "キャンセル",
+		"save": "保存",
+		"loading": "読み込み中..."
+	}
+}

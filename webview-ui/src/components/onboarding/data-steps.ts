@@ -1,6 +1,6 @@
 export enum NEW_USER_TYPE {
-	FREE = "free",
-	POWER = "power",
+	GEMINI_CLI = "gemini-cli",
+	ANTIGRAVITY = "antigravity",
 	BYOK = "byok",
 }
 
@@ -12,24 +12,21 @@ type UserTypeSelection = {
 
 export const STEP_CONFIG = {
 	0: {
-		title: "How will you use Cline?",
+		title: "How will you use GLLM Code?",
 		description: "Select an option below to get started.",
-		buttons: [
-			{ text: "Continue", action: "next", variant: "default" },
-			{ text: "Login to Cline", action: "signin", variant: "secondary" },
-		],
+		buttons: [{ text: "Continue", action: "next", variant: "default" }],
 	},
-	[NEW_USER_TYPE.FREE]: {
-		title: "Select a free model",
+	[NEW_USER_TYPE.GEMINI_CLI]: {
+		title: "Gemini CLI Login",
 		buttons: [
-			{ text: "Create my Account", action: "signup", variant: "default" },
+			{ text: "Continue", action: "done", variant: "default" },
 			{ text: "Back", action: "back", variant: "secondary" },
 		],
 	},
-	[NEW_USER_TYPE.POWER]: {
-		title: "Select your model",
+	[NEW_USER_TYPE.ANTIGRAVITY]: {
+		title: "Antigravity Login",
 		buttons: [
-			{ text: "Create my Account", action: "signup", variant: "default" },
+			{ text: "Continue", action: "done", variant: "default" },
 			{ text: "Back", action: "back", variant: "secondary" },
 		],
 	},
@@ -40,15 +37,10 @@ export const STEP_CONFIG = {
 			{ text: "Back", action: "back", variant: "secondary" },
 		],
 	},
-	2: {
-		title: "Almost there!",
-		description: "Complete account creation in your browser. Then come back here to finish up.",
-		buttons: [{ text: "Back", action: "back", variant: "secondary" }],
-	},
 } as const
 
 export const USER_TYPE_SELECTIONS: UserTypeSelection[] = [
-	{ title: "Absolutely Free", description: "Get started at no cost", type: NEW_USER_TYPE.FREE },
-	{ title: "Frontier Model", description: "Claude, GPT Codex, Gemini, etc.", type: NEW_USER_TYPE.POWER },
-	{ title: "Bring my own API key", description: "Use Cline with your provider of choice", type: NEW_USER_TYPE.BYOK },
+	{ title: "Gemini CLI", description: "Login with Gemini Code Assist credentials", type: NEW_USER_TYPE.GEMINI_CLI },
+	{ title: "Antigravity", description: "Login with Antigravity credentials", type: NEW_USER_TYPE.ANTIGRAVITY },
+	{ title: "API Settings", description: "Use your own API key or provider", type: NEW_USER_TYPE.BYOK },
 ]

@@ -1,6 +1,6 @@
 {
-	"name": "claude-dev",
-	"displayName": "Cline",
+	"name": "gllm-code",
+	"displayName": "GLLM Code",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
 	"version": "3.80.0",
 	"icon": "assets/icons/icon.png",
@@ -15,10 +15,10 @@
 		"name": "Cline Bot Inc."
 	},
 	"license": "Apache-2.0",
-	"publisher": "saoudrizwan",
+	"publisher": "mouseos",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/cline/cline"
+		"url": "https://github.com/mouseos/gllm-code"
 	},
 	"homepage": "https://cline.bot",
 	"categories": [
@@ -115,17 +115,17 @@
 		"viewsContainers": {
 			"activitybar": [
 				{
-					"id": "claude-dev-ActivityBar",
+					"id": "gllm-code-ActivityBar",
 					"title": "Cline",
 					"icon": "assets/icons/icon.svg"
 				}
 			]
 		},
 		"views": {
-			"claude-dev-ActivityBar": [
+			"gllm-code-ActivityBar": [
 				{
 					"type": "webview",
-					"id": "claude-dev.SidebarProvider",
+					"id": "gllm-code.SidebarProvider",
 					"name": "",
 					"icon": "assets/icons/icon.svg"
 				}
@@ -133,110 +133,105 @@
 		},
 		"commands": [
 			{
-				"command": "cline.plusButtonClicked",
+				"command": "gllm-code.plusButtonClicked",
 				"title": "New Task",
 				"icon": "$(add)"
 			},
 			{
-				"command": "cline.mcpButtonClicked",
+				"command": "gllm-code.mcpButtonClicked",
 				"title": "MCP Servers",
 				"icon": "$(server)"
 			},
 			{
-				"command": "cline.historyButtonClicked",
+				"command": "gllm-code.historyButtonClicked",
 				"title": "History",
 				"icon": "$(history)"
 			},
 			{
-				"command": "cline.accountButtonClicked",
-				"title": "Account",
-				"icon": "$(account)"
-			},
-			{
-				"command": "cline.settingsButtonClicked",
+				"command": "gllm-code.settingsButtonClicked",
 				"title": "Settings",
 				"icon": "$(settings-gear)"
 			},
 			{
-				"command": "cline.dev.createTestTasks",
+				"command": "gllm-code.dev.createTestTasks",
 				"title": "Create Test Tasks",
 				"category": "Cline",
-				"when": "cline.isDevMode"
+				"when": "gllm-code.isDevMode"
 			},
 			{
-				"command": "cline.dev.expireMcpOAuthTokens",
+				"command": "gllm-code.dev.expireMcpOAuthTokens",
 				"title": "Expire MCP OAuth Tokens (for testing)",
 				"category": "Cline",
-				"when": "cline.isDevMode"
+				"when": "gllm-code.isDevMode"
 			},
 			{
-				"command": "cline.addToChat",
+				"command": "gllm-code.addToChat",
 				"title": "Add to Cline",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.focusChatInput",
+				"command": "gllm-code.focusChatInput",
 				"title": "Jump to Chat Input",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
+				"command": "gllm-code.generateGitCommitMessage",
 				"title": "Generate Commit Message with Cline",
 				"category": "Cline",
 				"icon": "$(cline-icon)"
 			},
 			{
-				"command": "cline.abortGitCommitMessage",
+				"command": "gllm-code.abortGitCommitMessage",
 				"title": "Generate Commit Message with Cline - Stop",
 				"category": "Cline",
 				"icon": "$(debug-stop)"
 			},
 			{
-				"command": "cline.explainCode",
+				"command": "gllm-code.explainCode",
 				"title": "Explain with Cline",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.improveCode",
+				"command": "gllm-code.improveCode",
 				"title": "Improve with Cline",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.jupyterGenerateCell",
+				"command": "gllm-code.jupyterGenerateCell",
 				"title": "Generate Jupyter Cell with Cline",
 				"category": "Cline",
 				"icon": "$(sparkle)"
 			},
 			{
-				"command": "cline.jupyterExplainCell",
+				"command": "gllm-code.jupyterExplainCell",
 				"title": "Explain Jupyter Cell with Cline",
 				"category": "Cline",
 				"icon": "$(question)"
 			},
 			{
-				"command": "cline.jupyterImproveCell",
+				"command": "gllm-code.jupyterImproveCell",
 				"title": "Improve Jupyter Cell with Cline",
 				"category": "Cline",
 				"icon": "$(lightbulb)"
 			},
 			{
-				"command": "cline.openWalkthrough",
+				"command": "gllm-code.openWalkthrough",
 				"title": "Open Walkthrough",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.reconstructTaskHistory",
+				"command": "gllm-code.reconstructTaskHistory",
 				"title": "Reconstruct Task History",
 				"category": "Cline"
 			},
 			{
-				"command": "cline.reviewComment.reply",
+				"command": "gllm-code.reviewComment.reply",
 				"title": "Reply",
 				"category": "Cline",
 				"enablement": "!commentIsEmpty"
 			},
 			{
-				"command": "cline.reviewComment.addToChat",
+				"command": "gllm-code.reviewComment.addToChat",
 				"title": "Add to Cline Chat",
 				"category": "Cline",
 				"icon": "$(link-external)"
@@ -249,7 +244,7 @@
 				"when": "commentEditorFocused && commentController == cline-ai-review && !commentIsEmpty"
 			},
 			{
-				"command": "cline.addToChat",
+				"command": "gllm-code.addToChat",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -257,11 +252,11 @@
 				"when": "editorHasSelection"
 			},
 			{
-				"command": "cline.generateGitCommitMessage",
+				"command": "gllm-code.generateGitCommitMessage",
 				"when": "config.git.enabled && scmProvider == git"
 			},
 			{
-				"command": "cline.focusChatInput",
+				"command": "gllm-code.focusChatInput",
 				"key": "cmd+'",
 				"mac": "cmd+'",
 				"win": "ctrl+'",
@@ -272,93 +267,88 @@
 		"menus": {
 			"view/title": [
 				{
-					"command": "cline.plusButtonClicked",
+					"command": "gllm-code.plusButtonClicked",
 					"group": "navigation@1",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == gllm-code.SidebarProvider"
 				},
 				{
-					"command": "cline.mcpButtonClicked",
+					"command": "gllm-code.mcpButtonClicked",
 					"group": "navigation@2",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == gllm-code.SidebarProvider"
 				},
 				{
-					"command": "cline.historyButtonClicked",
+					"command": "gllm-code.historyButtonClicked",
 					"group": "navigation@3",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == gllm-code.SidebarProvider"
 				},
 				{
-					"command": "cline.accountButtonClicked",
-					"group": "navigation@5",
-					"when": "view == claude-dev.SidebarProvider"
-				},
-				{
-					"command": "cline.settingsButtonClicked",
+					"command": "gllm-code.settingsButtonClicked",
 					"group": "navigation@6",
-					"when": "view == claude-dev.SidebarProvider"
+					"when": "view == gllm-code.SidebarProvider"
 				}
 			],
 			"editor/context": [
 				{
-					"command": "cline.addToChat",
+					"command": "gllm-code.addToChat",
 					"group": "navigation",
 					"when": "editorHasSelection"
 				}
 			],
 			"scm/title": [
 				{
-					"command": "cline.generateGitCommitMessage",
+					"command": "gllm-code.generateGitCommitMessage",
 					"group": "navigation",
 					"when": "config.git.enabled && scmProvider == git && !cline.isGeneratingCommit"
 				},
 				{
-					"command": "cline.abortGitCommitMessage",
+					"command": "gllm-code.abortGitCommitMessage",
 					"group": "navigation",
 					"when": "config.git.enabled && scmProvider == git && cline.isGeneratingCommit"
 				}
 			],
 			"notebook/toolbar": [
 				{
-					"command": "cline.jupyterGenerateCell",
+					"command": "gllm-code.jupyterGenerateCell",
 					"group": "navigation/add@1",
 					"when": "notebookType == 'jupyter-notebook'"
 				}
 			],
 			"notebook/cell/title": [
 				{
-					"command": "cline.jupyterExplainCell",
+					"command": "gllm-code.jupyterExplainCell",
 					"group": "inline@1",
 					"when": "notebookType == 'jupyter-notebook'"
 				},
 				{
-					"command": "cline.jupyterImproveCell",
+					"command": "gllm-code.jupyterImproveCell",
 					"group": "inline@2",
 					"when": "notebookType == 'jupyter-notebook'"
 				}
 			],
 			"commandPalette": [
 				{
-					"command": "cline.generateGitCommitMessage",
+					"command": "gllm-code.generateGitCommitMessage",
 					"when": "config.git.enabled && !cline.isGeneratingCommit"
 				},
 				{
-					"command": "cline.abortGitCommitMessage",
+					"command": "gllm-code.abortGitCommitMessage",
 					"when": "config.git.enabled && cline.isGeneratingCommit"
 				},
 				{
-					"command": "cline.reviewComment.reply",
+					"command": "gllm-code.reviewComment.reply",
 					"when": "false"
 				}
 			],
 			"comments/commentThread/context": [
 				{
-					"command": "cline.reviewComment.reply",
+					"command": "gllm-code.reviewComment.reply",
 					"group": "inline",
 					"when": "commentController == cline-ai-review"
 				}
 			],
 			"comments/commentThread/title": [
 				{
-					"command": "cline.reviewComment.addToChat",
+					"command": "gllm-code.reviewComment.addToChat",
 					"group": "inline",
 					"when": "commentController == cline-ai-review"
 				}

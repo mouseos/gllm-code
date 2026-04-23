@@ -12,6 +12,7 @@ import {
 	Wrench,
 } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useEvent } from "react-use"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useClineAuth } from "@/context/ClineAuthContext"
@@ -104,21 +105,34 @@ type SettingsViewProps = {
 	targetSection?: string
 }
 
-// Helper to render section header - moved outside component for better performance
-const renderSectionHeader = (tabId: string) => {
-	const tab = SETTINGS_TABS.find((t) => t.id === tabId)
-	if (!tab) {
-		return null
-	}
-
-	return (
-		<SectionHeader>
-			<div className="flex items-center gap-2">
-				<tab.icon className="w-4" />
-				<div>{tab.headerText}</div>
-			</div>
-		</SectionHeader>
-	)
+const TAB_TRANSLATION_KEYS: Record<string, { name: string; tooltip: string; header: string }> = {
+	"api-config": {
+		name: "settings.tabs.api_configuration",
+		tooltip: "settings.tabs.api_configuration",
+		header: "settings.tabs.api_configuration",
+	},
+	features: {
+		name: "settings.tabs.features",
+		tooltip: "settings.tabs.feature_settings",
+		header: "settings.tabs.feature_settings",
+	},
+	browser: {
+		name: "settings.tabs.browser",
+		tooltip: "settings.tabs.browser_settings",
+		header: "settings.tabs.browser_settings",
+	},
+	general: {
+		name: "settings.tabs.general",
+		tooltip: "settings.tabs.general_settings",
+		header: "settings.tabs.general_settings",
+	},
+	"remote-config": {
+		name: "settings.tabs.remote_config",
+		tooltip: "settings.tabs.remotely_configured",
+		header: "settings.tabs.remote_config",
+	},
+	about: { name: "settings.tabs.about", tooltip: "settings.tabs.about_cline", header: "settings.tabs.about" },
+	debug: { name: "settings.tabs.debug", tooltip: "settings.tabs.debug_tools", header: "settings.tabs.debug" },
 }
 
 const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
@@ -136,8 +150,26 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 		[],
 	) // Empty deps - these imports never change
 
+	const { t } = useTranslation()
 	const { version, environment, settingsInitialModelTab } = useExtensionState()
 	const { activeOrganization } = useClineAuth()
+
+	const renderSectionHeader = useCallback(
+		(tabId: string) => {
+			const tab = SETTINGS_TABS.find((tb) => tb.id === tabId)
+			if (!tab) return null
+			const keys = TAB_TRANSLATION_KEYS[tabId]
+			return (
+				<SectionHeader>
+					<div className="flex items-center gap-2">
+						<tab.icon className="w-4" />
+						<div>{keys ? t(keys.header) : tab.headerText}</div>
+					</div>
+				</SectionHeader>
+			)
+		},
+		[t],
+	)
 
 	const [activeTab, setActiveTab] = useState<string>(targetSection || SETTINGS_TABS[0].id)
 
@@ -215,10 +247,14 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 									},
 								)}>
 								<tab.icon className="w-4 h-4" />
-								<span className="hidden sm:block">{tab.name}</span>
+								<span className="hidden sm:block">
+									{TAB_TRANSLATION_KEYS[tab.id] ? t(TAB_TRANSLATION_KEYS[tab.id].name) : tab.name}
+								</span>
 							</div>
 						</TooltipTrigger>
-						<TooltipContent side="right">{tab.tooltipText}</TooltipContent>
+						<TooltipContent side="right">
+							{TAB_TRANSLATION_KEYS[tab.id] ? t(TAB_TRANSLATION_KEYS[tab.id].tooltip) : tab.tooltipText}
+						</TooltipContent>
 					</Tooltip>
 				</TabTrigger>
 			)
@@ -248,7 +284,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 
 	return (
 		<Tab>
-			<ViewHeader environment={environment} onDone={onDone} title="Settings" />
+			<ViewHeader environment={environment} onDone={onDone} title={t("settings.title")} />
 
 			<div className="flex flex-1 overflow-hidden">
 				<TabList
