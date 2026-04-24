@@ -32,6 +32,8 @@
 			"browser_settings": "ブラウザ設定",
 			"general": "一般",
 			"general_settings": "一般設定",
+			"mcp_server": "MCP サーバー",
+			"local_mcp_server": "ローカル MCP サーバー",
 			"remote_config": "リモート設定",
 			"remotely_configured": "リモートで管理されている設定",
 			"about": "バージョン情報",

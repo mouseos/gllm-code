@@ -135,6 +135,11 @@ const TAB_TRANSLATION_KEYS: Record<string, { name: string; tooltip: string; head
 		tooltip: "settings.tabs.general_settings",
 		header: "settings.tabs.general_settings",
 	},
+	"mcp-server": {
+		name: "settings.tabs.mcp_server",
+		tooltip: "settings.tabs.local_mcp_server",
+		header: "settings.tabs.mcp_server",
+	},
 	"remote-config": {
 		name: "settings.tabs.remote_config",
 		tooltip: "settings.tabs.remotely_configured",

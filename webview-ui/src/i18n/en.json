@@ -32,6 +32,8 @@
 			"browser_settings": "Browser Settings",
 			"general": "General",
 			"general_settings": "General Settings",
+			"mcp_server": "MCP Server",
+			"local_mcp_server": "Local MCP Server",
 			"remote_config": "Remote Config",
 			"remotely_configured": "Remotely configured fields",
 			"about": "About",

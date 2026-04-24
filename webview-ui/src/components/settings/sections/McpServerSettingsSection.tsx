@@ -25,7 +25,7 @@ const Toggle: React.FC<{
 	</label>
 )
 
-const CopyButton: React.FC<{ value: string; label?: string }> = ({ value, label = "Copy" }) => {
+const CopyButton: React.FC<{ value: string; label?: string }> = ({ value, label = "コピー" }) => {
 	const [copied, setCopied] = useState(false)
 	return (
 		<button
@@ -37,7 +37,7 @@ const CopyButton: React.FC<{ value: string; label?: string }> = ({ value, label 
 			}}
 			type="button">
 			{copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-			{copied ? "Copied" : label}
+			{copied ? "コピーしました" : label}
 		</button>
 	)
 }
@@ -82,34 +82,35 @@ export default function McpServerSettingsSection({
 			<Section>
 				<div className="space-y-3">
 					<p className="text-sm text-description leading-relaxed">
-						Expose this GLLM Code instance as a local MCP server so any MCP client (Claude Code, Claude Desktop,
-						Codex, custom scripts, …) can start and continue tasks. The first window to start runs the broker on a
-						stable URL+token; every other window becomes a forwarding backend. Register the broker URL once with{" "}
-						<code>claude mcp add</code> — it survives reloads and switching workspaces.
+						この GLLM Code インスタンスをローカルの MCP サーバーとして公開します。Claude Code、Claude
+						Desktop、Codex、独自スクリプトなど任意の MCP
+						クライアントからタスクを開始・継続できます。最初に起動したウィンドウが固定 URL+token の broker
+						として動き、以降のウィンドウは転送用 backend になります。<code>claude mcp add</code> で broker URL を 1
+						度だけ登録すれば、リロードやワークスペース切替え後もそのまま使えます。
 					</p>
 
 					<div className="border border-input-border rounded-md p-3 space-y-1">
 						<Toggle
 							checked={!!mcpServerEnabled}
-							description="Starts/stops the server immediately — no window reload required."
-							label="Enable MCP server"
+							description="ウィンドウリロード不要。切り替えた瞬間にサーバーを起動／停止します。"
+							label="MCP サーバーを有効化"
 							onChange={(v) => setFlag({ mcpServerEnabled: v })}
 						/>
 						<Toggle
 							checked={!!mcpServerRequireApproval}
-							description="Show a one-time modal the first time each new MCP client tries to start a task or read history."
-							label="Require approval for new clients"
+							description="新しい MCP クライアントが初めてタスクを開始または履歴を読もうとしたとき、1 度だけ確認モーダルを表示します。"
+							label="新規クライアントに承認を要求"
 							onChange={(v) => setFlag({ mcpServerRequireApproval: v })}
 						/>
 					</div>
 
 					<div className="border border-input-border rounded-md p-3">
 						<div className="flex items-center justify-between mb-2">
-							<span className="text-xs uppercase tracking-wider text-description font-semibold">Status</span>
+							<span className="text-xs uppercase tracking-wider text-description font-semibold">状態</span>
 							<span className="flex items-center gap-1.5">
 								{running && (
 									<span className="text-[10px] px-1.5 py-0.5 rounded-full border border-input-border/60 text-description">
-										{isBroker ? "this window = broker" : "follower"}
+										{isBroker ? "このウィンドウが broker" : "follower"}
 									</span>
 								)}
 								<span
@@ -118,62 +119,63 @@ export default function McpServerSettingsSection({
 											? "text-[11px] px-2 py-0.5 rounded-full bg-[var(--color-claude-clay)]/20 text-[var(--color-claude-orange)] font-semibold"
 											: "text-[11px] px-2 py-0.5 rounded-full bg-description/20 text-description"
 									}>
-									{brokerRunning ? "Broker online" : running ? "Follower only" : "Stopped"}
+									{brokerRunning ? "Broker 稼働中" : running ? "Follower のみ" : "停止中"}
 								</span>
 							</span>
 						</div>
 						{brokerRunning ? (
 							<div className="space-y-2 text-xs">
 								<div className="flex items-center justify-between gap-2">
-									<span className="text-description">Endpoint</span>
+									<span className="text-description">エンドポイント</span>
 									<span className="flex items-center gap-2 font-mono">
 										<span>{connectUrl}</span>
 										<CopyButton value={connectUrl} />
 									</span>
 								</div>
 								<div className="flex items-center justify-between gap-2">
-									<span className="text-description">Token</span>
+									<span className="text-description">トークン</span>
 									<span className="flex items-center gap-2 font-mono">
 										<span>{maskedToken}</span>
-										<CopyButton label="Copy token" value={token} />
+										<CopyButton label="トークンをコピー" value={token} />
 									</span>
 								</div>
 								<div className="flex items-center justify-between gap-2">
-									<span className="text-description">Workspace</span>
+									<span className="text-description">ワークスペース</span>
 									<span className="font-mono text-description truncate max-w-[60%]">
 										{mcpServerStatus?.workspaceRoot ?? "—"}
 									</span>
 								</div>
 								<div className="pt-2 border-t border-input-border/40">
-									<div className="text-description mb-1">Connect from Claude Code:</div>
+									<div className="text-description mb-1">Claude Code からの接続コマンド:</div>
 									<pre className="text-[11px] bg-code/40 rounded-xs p-2 overflow-x-auto">{connectCommand}</pre>
 									<div className="pt-1 flex justify-end">
-										<CopyButton label="Copy command" value={connectCommand} />
+										<CopyButton label="コマンドをコピー" value={connectCommand} />
 									</div>
 								</div>
 								<div className="pt-1 text-description text-[10px] leading-relaxed">
-									To target a specific workspace from the MCP client, pass{" "}
-									<code>workspace: "/abs/path/to/project"</code> as a tool argument. Omit it and the broker
-									routes to the most recently focused GLLM window.
+									特定のワークスペースへ向けたい場合は、ツール引数に{" "}
+									<code>workspace: "/abs/path/to/project"</code>{" "}
+									を指定してください。省略時は、直近にフォーカスされた GLLM ウィンドウへ broker
+									がルーティングします。
 								</div>
 							</div>
 						) : running ? (
 							<div className="text-xs text-description">
-								This window is acting as a forwarding backend — another GLLM window holds the broker. Close the
-								broker window or wait a few seconds for automatic leader take-over.
+								このウィンドウは転送 backend として動作中です (別の GLLM ウィンドウが broker を保持)。broker
+								ウィンドウを閉じるか、数秒待つと自動でリーダー切替が起きます。
 							</div>
 						) : (
 							<div className="text-xs text-description">
-								The server is not running. Toggle <em>Enable MCP server</em> above to start it.
+								サーバーは停止中です。上の <em>MCP サーバーを有効化</em> をオンにすると起動します。
 							</div>
 						)}
 					</div>
 
 					<div className="text-[11px] text-description leading-relaxed">
 						<RefreshCw aria-hidden className="size-3 inline mr-1" />
-						The broker URL+token are persisted in <code>~/.gllm-code/mcp/broker-creds.json</code> and reused across
-						restarts, so you only need to <code>claude mcp add</code> once. Approval decisions are saved per client
-						name in global state — to revoke, clear the relevant entry manually.
+						broker の URL と token は <code>~/.gllm-code/mcp/broker-creds.json</code> に保存され、再起動後も
+						再利用されます。<code>claude mcp add</code> は 1 回だけで OK です。承認結果はクライアント名ごとに global
+						state に保存されます — 取り消すにはエントリーを手動で削除してください。
 					</div>
 				</div>
 			</Section>
