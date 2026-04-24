@@ -101,6 +101,51 @@ function getProviderBadge(provider: string): string {
 	return provider.toUpperCase()
 }
 
+function getProviderDisplayName(provider: string): string {
+	if (provider === "antigravity") return "Antigravity"
+	if (provider === "gemini") return "Gemini API"
+	if (provider === "gemini-cli") return "Gemini CLI"
+	return provider
+}
+
+function formatProviderModelDisplay(provider?: string, model?: string): string | null {
+	if (!provider && !model) {
+		return null
+	}
+	if (!provider) {
+		return model ?? null
+	}
+	if (!model) {
+		return getProviderDisplayName(provider)
+	}
+	return `${getProviderDisplayName(provider)}: ${model}`
+}
+
+function getLatestGllmRequestDisplay(messages: ReturnType<typeof useExtensionState>["clineMessages"]): {
+	accountId?: string
+	providerId?: string
+	modelId?: string
+} | null {
+	for (let i = messages.length - 1; i >= 0; i--) {
+		const message = messages[i]
+		if (message.type !== "say" || message.say !== "api_req_started" || !message.text) {
+			continue
+		}
+		try {
+			const parsed = JSON.parse(message.text)
+			const accountId = typeof parsed.accountId === "string" ? parsed.accountId : undefined
+			const providerId = typeof parsed.providerId === "string" ? parsed.providerId : undefined
+			const modelId = typeof parsed.modelId === "string" ? parsed.modelId : undefined
+			if (accountId || providerId || modelId) {
+				return { accountId, providerId, modelId }
+			}
+		} catch {
+			// Ignore non-JSON request rows.
+		}
+	}
+	return null
+}
+
 function getOrderedAccounts(accounts: ProtoGllmAccount[]): ProtoGllmAccount[] {
 	const mainIndex = accounts.findIndex((account) => account.isMain)
 	if (mainIndex <= 0) {
@@ -705,6 +750,23 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 	const primaryAccount = orderedAccounts[0] ?? null
 	const currentModel = primaryAccount?.model ?? ""
 	const modelSections = useMemo(() => getModelSections(orderedAccounts), [orderedAccounts])
+	const latestGllmRequest = useMemo(() => getLatestGllmRequestDisplay(clineMessages), [clineMessages])
+	const effectiveModelDisplayName = useMemo(() => {
+		if (latestGllmRequest) {
+			const matchedAccount = latestGllmRequest.accountId
+				? gllmAccounts.find((account) => account.id === latestGllmRequest.accountId)
+				: undefined
+			const provider = latestGllmRequest.providerId ?? matchedAccount?.provider
+			const model = latestGllmRequest.modelId ?? matchedAccount?.model
+			const display = formatProviderModelDisplay(provider, model)
+			if (display) {
+				return display
+			}
+		}
+
+		const accountDisplay = formatProviderModelDisplay(primaryAccount?.provider, primaryAccount?.model)
+		return accountDisplay ?? modelDisplayName
+	}, [gllmAccounts, latestGllmRequest, modelDisplayName, primaryAccount])
 
 	// Subscribe to gllm accounts
 	useEffect(() => {
@@ -888,7 +950,7 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 					)}
 					{openMenu === "slash" && (
 						<SlashMenu
-							modelDisplayName={modelDisplayName}
+							modelDisplayName={effectiveModelDisplayName}
 							navigateToMcp={navigateToMcp}
 							onClose={closeMenu}
 							onInsertSlashCommand={onInsertSlashCommand}
@@ -935,7 +997,7 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 						}}
 						title="Switch model"
 						type="button">
-						{modelDisplayName}
+						{effectiveModelDisplayName}
 					</button>
 					{openMenu === "model-status" && (
 						<ModelPickerMenu
