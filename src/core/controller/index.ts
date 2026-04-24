@@ -33,6 +33,7 @@ import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { getRunningMcpHost } from "@/services/mcp-host"
 import { pendingOriginForNextInitTask } from "@/services/mcp-host/originHook"
 import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
@@ -875,6 +876,18 @@ export class Controller {
 		const doubleCheckCompletionEnabled = this.stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled")
 		const lazyTeammateModeEnabled = this.stateManager.getGlobalSettingsKey("lazyTeammateModeEnabled")
 		const showFeatureTips = this.stateManager.getGlobalSettingsKey("showFeatureTips")
+		const mcpServerEnabled = this.stateManager.getGlobalSettingsKey("mcpServerEnabled")
+		const mcpServerRequireApproval = this.stateManager.getGlobalSettingsKey("mcpServerRequireApproval")
+		const mcpServerRuntime = getRunningMcpHost()
+		const mcpServerStatus = mcpServerRuntime
+			? {
+					running: true,
+					port: mcpServerRuntime.entry.port,
+					token: mcpServerRuntime.entry.token,
+					workspaceRoot: mcpServerRuntime.entry.workspaceRoot,
+					windowId: mcpServerRuntime.entry.windowId,
+				}
+			: { running: false }
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -982,6 +995,9 @@ export class Controller {
 			doubleCheckCompletionEnabled,
 			lazyTeammateModeEnabled,
 			showFeatureTips,
+			mcpServerEnabled,
+			mcpServerRequireApproval,
+			mcpServerStatus,
 			banners,
 			welcomeBanners,
 			openAiCodexIsAuthenticated,

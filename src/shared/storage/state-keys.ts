@@ -279,6 +279,11 @@ const USER_SETTINGS_FIELDS = {
 	lazyTeammateModeEnabled: { default: false as boolean },
 	showFeatureTips: { default: true as boolean },
 
+	// Exposes this GLLM instance as a local MCP server for other tools to
+	// drive. Details live in src/services/mcp-host/.
+	mcpServerEnabled: { default: false as boolean },
+	mcpServerRequireApproval: { default: true as boolean },
+
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { default: true as boolean },
 	openTelemetryMetricsExporter: { default: undefined as string | undefined },

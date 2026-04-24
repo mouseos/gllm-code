@@ -7,6 +7,7 @@ import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { ClineEnv } from "@/config"
 import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
 import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
+import { reconcileMcpHostFromSettings } from "@/services/mcp-host"
 import { McpDisplayMode } from "@/shared/McpDisplayMode"
 import { Logger } from "@/shared/services/Logger"
 import { telemetryService } from "../../../services/telemetry"
@@ -288,8 +289,25 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("showFeatureTips", request.showFeatureTips)
 		}
 
+		let mcpServerChanged = false
+		if (request.mcpServerEnabled !== undefined) {
+			controller.stateManager.setGlobalState("mcpServerEnabled", request.mcpServerEnabled)
+			mcpServerChanged = true
+		}
+
+		if (request.mcpServerRequireApproval !== undefined) {
+			controller.stateManager.setGlobalState("mcpServerRequireApproval", request.mcpServerRequireApproval)
+			mcpServerChanged = true
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
+
+		if (mcpServerChanged) {
+			// Reconcile the MCP host runtime state with the new settings without
+			// forcing a window reload.
+			void reconcileMcpHostFromSettings()
+		}
 
 		return Empty.create()
 	} catch (error) {

@@ -7,6 +7,7 @@ import {
 	HardDriveDownload,
 	Info,
 	type LucideIcon,
+	Plug,
 	SquareMousePointer,
 	UserRound,
 	Wrench,
@@ -29,12 +30,13 @@ import DebugSection from "./sections/DebugSection"
 import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import GeneralSettingsSection from "./sections/GeneralSettingsSection"
 import GllmAccountsSection from "./sections/GllmAccountsSection"
+import McpServerSettingsSection from "./sections/McpServerSettingsSection"
 import { RemoteConfigSection } from "./sections/RemoteConfigSection"
 
 const IS_DEV = process.env.IS_DEV
 
 // Tab definitions
-type SettingsTabID = "accounts" | "features" | "browser" | "general" | "about" | "debug" | "remote-config"
+type SettingsTabID = "accounts" | "features" | "browser" | "general" | "mcp-server" | "about" | "debug" | "remote-config"
 interface SettingsTab {
 	id: SettingsTabID
 	name: string
@@ -72,6 +74,13 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		tooltipText: "General Settings",
 		headerText: "General Settings",
 		icon: Wrench,
+	},
+	{
+		id: "mcp-server",
+		name: "MCP Server",
+		tooltipText: "Local MCP Server",
+		headerText: "MCP Server",
+		icon: Plug,
 	},
 	{
 		id: "remote-config",
@@ -143,6 +152,7 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			general: GeneralSettingsSection,
 			features: FeatureSettingsSection,
 			browser: BrowserSettingsSection,
+			"mcp-server": McpServerSettingsSection,
 			"remote-config": RemoteConfigSection,
 			about: AboutSection,
 			debug: DebugSection,

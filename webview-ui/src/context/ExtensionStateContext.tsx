@@ -272,6 +272,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		doubleCheckCompletionEnabled: false,
 		lazyTeammateModeEnabled: false,
 		showFeatureTips: true,
+		mcpServerEnabled: false,
+		mcpServerRequireApproval: true,
+		mcpServerStatus: { running: false },
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
 

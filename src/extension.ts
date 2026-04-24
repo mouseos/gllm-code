@@ -13,7 +13,7 @@ import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeTo
 import { sendWorktreesButtonClickedEvent } from "./core/controller/ui/subscribeToWorktreesButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
-import { startMcpHostIfEnabled, stopMcpHost } from "./services/mcp-host"
+import { bootstrapMcpHost, stopMcpHost } from "./services/mcp-host"
 import { initializeTestMode } from "./services/test/TestMode"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import path from "node:path"
@@ -500,10 +500,11 @@ ${ctx.cellJson || "{}"}
 	context.subscriptions.push({ dispose: unsubSecrets })
 
 	// Start the MCP host (lets other tools connect to this gllm-code instance
-	// via the Model Context Protocol). No-op unless gllm.mcpServer.enabled
-	// is set in settings. Intentionally fire-and-forget so we don't block
-	// activation on a port bind.
-	void startMcpHostIfEnabled(context)
+	// via the Model Context Protocol). The enable toggle lives in the GLLM
+	// Settings view; bootstrapMcpHost waits for the StateManager to be ready
+	// and then starts the server if the user has enabled it. Runtime toggles
+	// from the webview call reconcileMcpHostFromSettings() directly.
+	void bootstrapMcpHost(context)
 	context.subscriptions.push({ dispose: () => void stopMcpHost() })
 
 	Logger.log(`[Cline] extension activated in ${performance.now() - activationStartTime} ms`)

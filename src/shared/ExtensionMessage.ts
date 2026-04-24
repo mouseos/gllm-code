@@ -105,6 +105,15 @@ export interface ExtensionState {
 	doubleCheckCompletionEnabled?: boolean
 	lazyTeammateModeEnabled?: boolean
 	showFeatureTips?: boolean
+	mcpServerEnabled?: boolean
+	mcpServerRequireApproval?: boolean
+	mcpServerStatus?: {
+		running: boolean
+		port?: number
+		token?: string
+		workspaceRoot?: string
+		windowId?: string
+	}
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
