@@ -392,9 +392,13 @@ const menuContainerStyle: React.CSSProperties = {
 	borderRadius: 2,
 	padding: "4px 0",
 	minWidth: 220,
+	// Grow up to the available webview width (minus a small margin) — avoids
+	// long right-labels pushing the menu off-screen on a narrow sidebar.
+	maxWidth: "calc(100vw - 16px)",
 	boxShadow: "0 8px 20px rgba(0,0,0,0.24)",
 	zIndex: 1000,
 	fontSize: 12,
+	boxSizing: "border-box",
 }
 
 const menuItemBaseStyle: React.CSSProperties = {
@@ -449,8 +453,16 @@ const MenuItem: React.FC<MenuItemProps> = ({ label, rightLabel, checked, onClick
 			onMouseEnter={() => setHovered(true)}
 			onMouseLeave={() => setHovered(false)}
 			style={{ ...menuItemBaseStyle, backgroundColor: hovered ? MENU_HOVER : "transparent" }}
+			title={rightLabel}
 			type="button">
-			<span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+			<span
+				style={{
+					display: "flex",
+					alignItems: "center",
+					gap: 6,
+					flexShrink: 0,
+					minWidth: 0,
+				}}>
 				{checked !== undefined && (
 					<span style={{ width: 16, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
 						{checked && <Check size={14} />}
@@ -458,7 +470,22 @@ const MenuItem: React.FC<MenuItemProps> = ({ label, rightLabel, checked, onClick
 				)}
 				<span>{label}</span>
 			</span>
-			{rightLabel && <span style={{ color: SECTION_FG, fontSize: 12 }}>{rightLabel}</span>}
+			{rightLabel && (
+				<span
+					style={{
+						color: SECTION_FG,
+						fontSize: 12,
+						overflow: "hidden",
+						textOverflow: "ellipsis",
+						whiteSpace: "nowrap",
+						minWidth: 0,
+						flex: "1 1 auto",
+						textAlign: "right",
+						marginLeft: 12,
+					}}>
+					{rightLabel}
+				</span>
+			)}
 		</button>
 	)
 }
@@ -794,31 +821,70 @@ const UsageSummaryMenu: React.FC<{
 				{accounts.map((account) => {
 					const bar = getAccountQuotaBar(account)
 					const usage = accountUsage.find((entry) => entry.accountId === account.id)
-					const displayLabel = `${account.isMain ? "★ " : ""}${account.label || account.id}`
+					const providerTag = getProviderDisplayName(account.provider)
+					const emailOrId = account.label || account.email || account.id
 					return (
-						<div key={account.id} style={{ marginBottom: 10 }}>
+						<div key={account.id} style={{ marginBottom: 12 }}>
 							<div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, gap: 10 }}>
 								<span
 									style={{
-										fontWeight: 500,
+										display: "inline-flex",
+										alignItems: "center",
+										gap: 6,
 										overflow: "hidden",
-										textOverflow: "ellipsis",
-										whiteSpace: "nowrap",
-										flex: 1,
 										minWidth: 0,
+										flex: 1,
 									}}>
-									{displayLabel}
+									{/* Provider badge so the user can tell Antigravity / Gemini CLI / Gemini API apart */}
+									<span
+										style={{
+											flexShrink: 0,
+											fontSize: 10,
+											padding: "1px 6px",
+											borderRadius: 10,
+											border: `1px solid ${MENU_BORDER}`,
+											color: "var(--vscode-descriptionForeground)",
+											letterSpacing: "0.04em",
+											textTransform: "uppercase",
+											fontWeight: 600,
+										}}>
+										{providerTag}
+									</span>
+									<span
+										style={{
+											fontWeight: 500,
+											overflow: "hidden",
+											textOverflow: "ellipsis",
+											whiteSpace: "nowrap",
+											minWidth: 0,
+										}}>
+										{account.isMain ? "★ " : ""}
+										{emailOrId}
+									</span>
 								</span>
-								<span style={{ color: SECTION_FG, whiteSpace: "nowrap" }}>
+								<span style={{ color: SECTION_FG, whiteSpace: "nowrap", flexShrink: 0 }}>
 									{bar.percent !== null ? `${formatQuotaPercent(bar.percent)} left` : bar.statusText || "—"}
 								</span>
 							</div>
 							{bar.percent !== null && <UsageProgressBar percent={bar.percent} />}
-							<div style={{ fontSize: 11, color: SECTION_FG, marginTop: 2 }}>
-								{bar.resetText ||
-									(usage
-										? `${usage.totalTokensIn.toLocaleString()} in / ${usage.totalTokensOut.toLocaleString()} out`
-										: "No usage yet")}
+							<div
+								style={{
+									fontSize: 11,
+									color: SECTION_FG,
+									marginTop: 2,
+									display: "flex",
+									justifyContent: "space-between",
+									gap: 8,
+								}}>
+								<span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+									{account.model || "—"}
+								</span>
+								<span style={{ whiteSpace: "nowrap" }}>
+									{bar.resetText ||
+										(usage
+											? `${usage.totalTokensIn.toLocaleString()} in / ${usage.totalTokensOut.toLocaleString()} out`
+											: "")}
+								</span>
 							</div>
 						</div>
 					)
@@ -938,7 +1004,26 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 	const currentModel = primaryAccount?.model ?? ""
 	const modelSections = useMemo(() => getModelSections(configuredAccounts), [configuredAccounts])
 	const latestGllmRequest = useMemo(() => getLatestGllmRequestDisplay(clineMessages), [clineMessages])
+	// Displayed in the toolbar label and the "/" menu right-column.
+	// When the user has picked an auto-routing alias we want to show "Auto"
+	// (optionally with the last concretely-used provider in parentheses) rather
+	// than the resolved provider:model — that string is long, gets truncated,
+	// and hides the fact that the router is doing the selecting.
 	const effectiveModelDisplayName = useMemo(() => {
+		const selected = primaryAccount?.model ?? ""
+		const isAuto = selected === "auto" || selected === "auto pro" || selected === "auto flash"
+
+		if (isAuto) {
+			// If a recent request told us which provider/model was actually used,
+			// show e.g. "Auto · Antigravity" (short) instead of the full id.
+			const matchedAccount = latestGllmRequest?.accountId
+				? gllmAccounts.find((account) => account.id === latestGllmRequest.accountId)
+				: undefined
+			const activeProvider = latestGllmRequest?.providerId ?? matchedAccount?.provider
+			const label = selected.toUpperCase().replace("AUTO", "Auto") // "Auto" / "Auto pro" / "Auto flash"
+			return activeProvider ? `${label} · ${getProviderDisplayName(activeProvider)}` : label
+		}
+
 		if (latestGllmRequest) {
 			const matchedAccount = latestGllmRequest.accountId
 				? gllmAccounts.find((account) => account.id === latestGllmRequest.accountId)
