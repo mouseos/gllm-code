@@ -52,10 +52,10 @@ type Candidate = {
 const AUTO_MODEL_IDS = new Set(["auto pro", "auto flash", "auto"])
 const GEMINI_FALLBACK_MODELS = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
 const GEMINI_CLI_FALLBACK_MODELS = [
-	"gemini-3.1-pro-preview",
-	"gemini-3-pro-preview",
+	"gemini-3.1-pro",
+	"gemini-3-pro",
 	"gemini-2.5-pro",
-	"gemini-3-flash-preview",
+	"gemini-3-flash",
 	"gemini-2.5-flash",
 	"gemini-2.5-flash-lite",
 ]
@@ -243,13 +243,30 @@ function getFallbackModelsForProvider(provider: GllmAccount["provider"]): string
 
 function getProviderAutoModels(account: GllmAccount, tier: "pro" | "flash"): string[] {
 	if (account.provider === "gemini-cli") {
+		// Only list models we've verified exist on Gemini CLI auth. `-preview`
+		// suffixes were speculative and returned immediate errors (the
+		// isRetryableQuotaError matcher caught them, so the fallback looked
+		// like "4 rapid swaps in seconds" — which is accurate but useless).
+		// Preview variants come back automatically if the account's
+		// availableModels list includes them at runtime.
 		const preferred =
 			tier === "pro"
-				? ["gemini-3.1-pro-preview", "gemini-3-pro-preview", "gemini-2.5-pro"]
-				: ["gemini-3-flash-preview", "gemini-3.1-flash-lite-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
+				? ["gemini-3.1-pro", "gemini-3-pro", "gemini-2.5-pro"]
+				: ["gemini-3-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
 		const available = accountAutoModels(account)
-		const matchingPreferred = preferred.filter((modelId) => available.includes(modelId))
-		return available.length > 0 ? (matchingPreferred.length > 0 ? matchingPreferred : available) : preferred
+		// Prefer what the account actually advertises, intersected with our
+		// known-good list. If the account hasn't advertised any models yet
+		// (first login, stale cache) we fall back to `preferred` as a seed.
+		const intersection = preferred.filter((modelId) => available.includes(modelId))
+		if (intersection.length > 0) return intersection
+		if (available.length > 0) {
+			// Filter the advertised list to ones that look like
+			// non-preview generally-available names to avoid landing on
+			// models that routinely 400.
+			const filteredAvailable = available.filter((m) => !m.includes("-preview"))
+			return filteredAvailable.length > 0 ? filteredAvailable : available
+		}
+		return preferred
 	}
 	if (account.provider === "antigravity") {
 		const preferred =
