@@ -13,6 +13,7 @@ import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeTo
 import { sendWorktreesButtonClickedEvent } from "./core/controller/ui/subscribeToWorktreesButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
+import { startMcpHostIfEnabled, stopMcpHost } from "./services/mcp-host"
 import { initializeTestMode } from "./services/test/TestMode"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import path from "node:path"
@@ -498,6 +499,13 @@ ${ctx.cellJson || "{}"}
 	})
 	context.subscriptions.push({ dispose: unsubSecrets })
 
+	// Start the MCP host (lets other tools connect to this gllm-code instance
+	// via the Model Context Protocol). No-op unless claudeCode.mcpHost.enabled
+	// is set in settings. Intentionally fire-and-forget so we don't block
+	// activation on a port bind.
+	void startMcpHostIfEnabled(context)
+	context.subscriptions.push({ dispose: () => void stopMcpHost() })
+
 	Logger.log(`[Cline] extension activated in ${performance.now() - activationStartTime} ms`)
 
 	return createClineAPI(webview.controller)
@@ -641,6 +649,9 @@ async function getBinaryLocation(name: string): Promise<string> {
 
 // This method is called when your extension is deactivated
 export async function deactivate() {
+	// Stop the MCP host server (clean up the registry file and close the port).
+	await stopMcpHost()
+
 	// Dispose Non-VSCode-specific services
 	tearDown()
 

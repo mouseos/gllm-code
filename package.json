@@ -347,7 +347,13 @@
 		},
 		"configuration": {
 			"title": "GLLM Code",
-			"properties": {}
+			"properties": {
+				"claudeCode.mcpHost.enabled": {
+					"type": "boolean",
+					"default": false,
+					"description": "Expose this GLLM Code instance as a local MCP server so other tools (e.g. Claude Code) can start/continue tasks. Binds to 127.0.0.1 on a random port; token + port are written to ~/.gllm-code/mcp/registry.json."
+				}
+			}
 		}
 	},
 	"scripts": {
