@@ -500,7 +500,7 @@ ${ctx.cellJson || "{}"}
 	context.subscriptions.push({ dispose: unsubSecrets })
 
 	// Start the MCP host (lets other tools connect to this gllm-code instance
-	// via the Model Context Protocol). No-op unless claudeCode.mcpHost.enabled
+	// via the Model Context Protocol). No-op unless gllm.mcpServer.enabled
 	// is set in settings. Intentionally fire-and-forget so we don't block
 	// activation on a port bind.
 	void startMcpHostIfEnabled(context)

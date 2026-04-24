@@ -348,12 +348,12 @@
 		"configuration": {
 			"title": "GLLM Code",
 			"properties": {
-				"claudeCode.mcpHost.enabled": {
+				"gllm.mcpServer.enabled": {
 					"type": "boolean",
 					"default": false,
-					"description": "Expose this GLLM Code instance as a local MCP server so other tools (e.g. Claude Code) can start/continue tasks. Binds to 127.0.0.1 on a random port; token + port are written to ~/.gllm-code/mcp/registry.json."
+					"description": "Expose this GLLM Code instance as a local MCP server so any MCP client (Claude Code, Claude Desktop, Codex, custom scripts, …) can start and continue tasks. Binds to 127.0.0.1 on a random port; token + port are written to ~/.gllm-code/mcp/registry.json."
 				},
-				"claudeCode.mcpHost.requireApproval": {
+				"gllm.mcpServer.requireApproval": {
 					"type": "boolean",
 					"default": true,
 					"description": "Require a one-time modal approval per MCP client name before state-changing tools (start_task / send_message / list_tasks / cancel_task) are allowed. Disable only for local development."

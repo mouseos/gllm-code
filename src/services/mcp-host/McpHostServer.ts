@@ -108,7 +108,7 @@ function buildMcpServer(version: string, getClientName: () => string, getRequire
 		try {
 			const res = await HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: `"${clientName}" wants to connect to GLLM Code via MCP and may start, modify, or read your tasks. Allow?`,
+				message: `An MCP client identified as "${clientName}" is connecting to GLLM Code. It will be able to start new tasks, send follow-up messages, read your task history, and cancel running tasks. Allow this client?`,
 				options: { modal: true, items: ["Allow", "Deny"] },
 			})
 			return res.selectedOption === "Allow" ? "allow" : "deny"

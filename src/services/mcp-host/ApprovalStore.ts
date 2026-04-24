@@ -44,7 +44,7 @@ export class ApprovalStore {
  * Resolve an ApprovalStore tied to the active controller's StateManager.
  * Returns undefined if the controller isn't ready yet; callers should treat
  * "no store" as "don't enforce approval" (matches the fail-open behaviour of
- * `claudeCode.mcpHost.requireApproval=false`).
+ * `gllm.mcpServer.requireApproval=false`).
  */
 export function approvalStoreFor(controller: Controller | undefined): ApprovalStore | undefined {
 	if (!controller?.stateManager) return undefined

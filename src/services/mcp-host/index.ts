@@ -25,11 +25,11 @@ async function currentWorkspaceRoot(): Promise<string> {
 }
 
 function isEnabled(): boolean {
-	return vscode.workspace.getConfiguration("claudeCode").get<boolean>("mcpHost.enabled", false)
+	return vscode.workspace.getConfiguration("gllm").get<boolean>("mcpServer.enabled", false)
 }
 
 function getRequireApproval(): boolean {
-	return vscode.workspace.getConfiguration("claudeCode").get<boolean>("mcpHost.requireApproval", true)
+	return vscode.workspace.getConfiguration("gllm").get<boolean>("mcpServer.requireApproval", true)
 }
 
 export async function startMcpHostIfEnabled(context: vscode.ExtensionContext): Promise<void> {

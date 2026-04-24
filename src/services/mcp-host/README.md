@@ -6,7 +6,7 @@ tasks — effectively making GLLM a sub-agent in someone else's conversation.
 
 ## Enabling
 
-Set `claudeCode.mcpHost.enabled` to `true` in settings (default: off) and
+Set `gllm.mcpServer.enabled` to `true` in settings (default: off) and
 reload the window. On startup the extension:
 
 1. Binds an HTTP server to `127.0.0.1:<random>` with a fresh Bearer token
@@ -31,7 +31,7 @@ The **first** time a given MCP client name connects, a modal asks the user:
 The readonly probes (`gllm_ping`, `gllm_get_status`, `gllm_wait_for_completion`)
 bypass approval so clients can diagnose connectivity.
 
-Set `claudeCode.mcpHost.requireApproval=false` to skip approval (development only).
+Set `gllm.mcpServer.requireApproval=false` to skip approval (development only).
 
 ## Tools
 
