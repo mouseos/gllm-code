@@ -103,6 +103,10 @@ message TaskItem {
   int32 cache_writes = 9;
   int32 cache_reads = 10;
   string model_id = 11;
+  // "webview" | "mcp" | "cli" — source that spawned the task.
+  string origin = 12;
+  // e.g. "claude-code" for MCP-sourced tasks. Empty otherwise.
+  string origin_client_name = 13;
 }
 
 // Request for ask response operation

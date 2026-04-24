@@ -20,14 +20,20 @@ import { AddressInfo } from "node:net"
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js"
 import { z } from "zod"
-
+import { HostProvider } from "@/hosts/host-provider"
+import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 
+import { approvalStoreFor } from "./ApprovalStore"
+import { tryGetActiveController } from "./currentController"
 import { RegistryEntry, register, unregister } from "./registry"
+import { registerGllmTools, ToolContext } from "./tools"
 
 export interface McpHostServerOptions {
 	workspaceRoot: string
 	version?: string
+	/** Runtime-resolved: when false, approval modal is skipped (dev only). */
+	getRequireApproval: () => boolean
 }
 
 export interface RunningMcpHost {
@@ -82,7 +88,7 @@ async function readBody(req: http.IncomingMessage): Promise<unknown> {
 	})
 }
 
-function buildMcpServer(version: string): McpServer {
+function buildMcpServer(version: string, getClientName: () => string, getRequireApproval: () => boolean): McpServer {
 	const server = new McpServer(
 		{
 			name: "gllm-code",
@@ -95,22 +101,55 @@ function buildMcpServer(version: string): McpServer {
 		},
 	)
 
-	// Smoke-test tool — Phase 1 only. Real tools land in Phase 2.
+	// Ask the user the first time a given client attempts a state-changing
+	// tool. Both the approval record and the modal are mediated via the host
+	// bridge so unit tests can stub the window API.
+	const askUserForApproval = async (clientName: string): Promise<"allow" | "deny"> => {
+		try {
+			const res = await HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: `"${clientName}" wants to connect to GLLM Code via MCP and may start, modify, or read your tasks. Allow?`,
+				options: { modal: true, items: ["Allow", "Deny"] },
+			})
+			return res.selectedOption === "Allow" ? "allow" : "deny"
+		} catch (err) {
+			Logger.warn(`[McpHost] approval modal failed, defaulting to deny: ${err}`)
+			return "deny"
+		}
+	}
+
+	const ctx: ToolContext = {
+		getClientName,
+		getApprovalStore: () => approvalStoreFor(tryGetActiveController()),
+		requireApproval: getRequireApproval,
+		askUserForApproval,
+	}
+
+	registerGllmTools(server, ctx)
+
+	// Kept separate from registerGllmTools so the toolkit can't disable it —
+	// this is the smoke-test entry point for diagnostics.
 	server.registerTool(
-		"gllm_ping",
+		"gllm_host_info",
 		{
-			description:
-				"Connectivity check. Returns the gllm-code extension version and the workspace root this MCP host is bound to.",
-			inputSchema: {
-				message: z.string().optional().describe("Echoed back in the reply"),
-			},
+			description: "Diagnostic: returns the host version and whether a controller is currently available.",
+			inputSchema: { message: z.string().optional() },
 		},
 		async (args) => {
 			return {
 				content: [
 					{
 						type: "text",
-						text: JSON.stringify({ ok: true, echo: args.message ?? null, version }, null, 2),
+						text: JSON.stringify(
+							{
+								ok: true,
+								version,
+								echo: args.message ?? null,
+								hasController: !!tryGetActiveController(),
+							},
+							null,
+							2,
+						),
 					},
 				],
 			}
@@ -123,7 +162,17 @@ function buildMcpServer(version: string): McpServer {
 export async function startMcpHostServer(options: McpHostServerOptions): Promise<RunningMcpHost> {
 	const windowId = `win-${process.pid}-${randomUUID().slice(0, 8)}`
 	const token = newToken()
-	const mcpServer = buildMcpServer(options.version ?? "0.0.0")
+
+	// Captured client identity from the initialize handshake. Falls back to
+	// "unknown-mcp-client" if a tool is invoked before initialize resolves
+	// (shouldn't happen with compliant clients but guard anyway).
+	let clientName = "unknown-mcp-client"
+	const mcpServer = buildMcpServer(options.version ?? "0.0.0", () => clientName, options.getRequireApproval)
+	mcpServer.server.oninitialized = () => {
+		const info = mcpServer.server.getClientVersion()
+		if (info?.name) clientName = info.name
+	}
+
 	const transport = new StreamableHTTPServerTransport({
 		sessionIdGenerator: () => randomUUID(),
 		enableJsonResponse: false,

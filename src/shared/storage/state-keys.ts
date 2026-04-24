@@ -93,6 +93,11 @@ const GLOBAL_STATE_FIELDS = {
 	worktreeAutoOpenPath: { default: undefined as string | undefined },
 	// GLLM multi-account list (metadata only, tokens stored in secrets)
 	gllmAccounts: { default: [] as GllmAccount[] },
+	// First-time approvals for the MCP host feature: Record<clientName, {decision, ts}>
+	// Deny is permanent by user request; entries never auto-expire.
+	mcpHostApprovedClients: {
+		default: {} as Record<string, { decision: "allow" | "deny"; ts: number }>,
+	},
 } satisfies FieldDefinitions
 
 // Fields that map directly to ApiHandlerOptions in @shared/api.ts

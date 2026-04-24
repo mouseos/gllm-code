@@ -169,6 +169,13 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 						)}
 					</div>
 					<div className="inline-flex items-center justify-end select-none shrink-0">
+						{currentTaskItem?.origin === "mcp" && (
+							<span
+								className="mx-1 px-1.5 py-0.25 rounded-full border border-[var(--color-claude-clay)]/50 text-[var(--color-claude-orange)] text-[10px] uppercase tracking-wider font-semibold"
+								title={`Started via MCP${currentTaskItem.originClientName ? ` client: ${currentTaskItem.originClientName}` : ""}`}>
+								MCP{currentTaskItem.originClientName ? ` · ${currentTaskItem.originClientName}` : ""}
+							</span>
+						)}
 						{isCostAvailable && (
 							<div
 								className="mx-1 px-1 py-0.25 rounded-full inline-flex shrink-0 text-badge-background bg-badge-foreground/80 items-center"

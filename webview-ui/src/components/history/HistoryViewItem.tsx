@@ -95,6 +95,13 @@ const HistoryViewItem = ({
 					handleShowTaskWithId(item.id)
 				}}>
 				<div className="flex items-center gap-2">
+					{item.origin === "mcp" && (
+						<span
+							className="text-[9px] uppercase px-1.5 py-0.5 rounded-full border border-[var(--color-claude-clay)]/50 text-[var(--color-claude-orange)] tracking-wider flex-shrink-0 font-semibold"
+							title={`Started via MCP${item.originClientName ? ` client: ${item.originClientName}` : ""}`}>
+							MCP{item.originClientName ? ` · ${item.originClientName}` : ""}
+						</span>
+					)}
 					<div className="line-clamp-1 overflow-hidden break-words whitespace-pre-wrap flex-1 min-w-0">
 						<span className="ph-no-capture">{item.task}</span>
 					</div>

@@ -28,6 +28,10 @@ function isEnabled(): boolean {
 	return vscode.workspace.getConfiguration("claudeCode").get<boolean>("mcpHost.enabled", false)
 }
 
+function getRequireApproval(): boolean {
+	return vscode.workspace.getConfiguration("claudeCode").get<boolean>("mcpHost.requireApproval", true)
+}
+
 export async function startMcpHostIfEnabled(context: vscode.ExtensionContext): Promise<void> {
 	if (!isEnabled()) return
 	if (current) return
@@ -35,6 +39,7 @@ export async function startMcpHostIfEnabled(context: vscode.ExtensionContext): P
 		current = await startMcpHostServer({
 			workspaceRoot: await currentWorkspaceRoot(),
 			version: context.extension.packageJSON.version,
+			getRequireApproval,
 		})
 	} catch (err) {
 		Logger.error(`[McpHost] failed to start: ${String(err)}`)

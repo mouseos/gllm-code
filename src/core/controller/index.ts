@@ -33,6 +33,7 @@ import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
+import { pendingOriginForNextInitTask } from "@/services/mcp-host/originHook"
 import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
 import { getAxiosSettings } from "@/shared/net"
@@ -1018,9 +1019,25 @@ export class Controller {
 		const history = this.stateManager.getGlobalStateKey("taskHistory")
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
-			history[existingItemIndex] = item
+			// Preserve origin info from the first save across subsequent updates —
+			// Task.updateTaskHistory() rebuilds the item from scratch each time
+			// and doesn't know about origin.
+			const prior = history[existingItemIndex]
+			const merged: HistoryItem = {
+				...item,
+				origin: item.origin ?? prior.origin,
+				originClientName: item.originClientName ?? prior.originClientName,
+			}
+			history[existingItemIndex] = merged
 		} else {
-			history.push(item)
+			// New task — stamp origin from the MCP one-shot slot if any tool set
+			// it (tools clear it immediately after initTask returns). Defaults to
+			// "webview" otherwise so the UI can distinguish MCP-launched tasks.
+			const pending = pendingOriginForNextInitTask.take()
+			const stamped: HistoryItem = pending
+				? { ...item, origin: pending.origin, originClientName: pending.clientName }
+				: { ...item, origin: item.origin ?? "webview" }
+			history.push(stamped)
 		}
 		this.stateManager.setGlobalState("taskHistory", history)
 		return history
