@@ -121,6 +121,13 @@ function formatProviderModelDisplay(provider?: string, model?: string): string |
 	return `${getProviderDisplayName(provider)}: ${model}`
 }
 
+function hasUsableAccountCredentials(account: ProtoGllmAccount): boolean {
+	if (account.authType === "apikey") {
+		return !!account.apiKey?.trim()
+	}
+	return true
+}
+
 function getLatestGllmRequestDisplay(messages: ReturnType<typeof useExtensionState>["clineMessages"]): {
 	accountId?: string
 	providerId?: string
@@ -310,7 +317,7 @@ function mergeModelEntries(entries: ModelEntry[]): ModelEntry[] {
 
 function getModelSections(accounts: ProtoGllmAccount[]): ModelSection[] {
 	if (accounts.length === 0) {
-		return [{ header: "Models", models: GEMINI_CLI_MODEL_ENTRIES }]
+		return []
 	}
 
 	const providerBadges = [...new Set(accounts.map((account) => getProviderBadge(account.provider)))]
@@ -556,28 +563,46 @@ const SlashMenu: React.FC<{
 const ModelPickerMenu: React.FC<{
 	sections: ModelSection[]
 	currentModel: string
+	onOpenAccounts: () => void
 	onSelectModel: (modelId: string) => void
 	onClose: () => void
-}> = ({ sections, currentModel, onSelectModel, onClose }) => (
+}> = ({ sections, currentModel, onOpenAccounts, onSelectModel, onClose }) => (
 	<div style={{ ...menuContainerStyle, left: 0, maxHeight: 400, overflowY: "auto" }}>
-		{sections.map((section, sIdx) => (
-			<React.Fragment key={section.header}>
-				{sIdx > 0 && <MenuSeparator />}
-				<SectionHeader>{section.header}</SectionHeader>
-				{section.models.map((m) => (
-					<MenuItem
-						checked={currentModel === m.id}
-						key={m.id}
-						label={m.label}
-						onClick={() => {
-							onSelectModel(m.id)
-							onClose()
-						}}
-						rightLabel={m.description}
-					/>
-				))}
-			</React.Fragment>
-		))}
+		{sections.length === 0 ? (
+			<>
+				<SectionHeader>Accounts</SectionHeader>
+				<div style={{ color: SECTION_FG, fontSize: 12, padding: "8px 12px", whiteSpace: "normal" }}>
+					Add or sign in to a GLLM account before selecting a model.
+				</div>
+				<MenuSeparator />
+				<MenuItem
+					label="Open Account Settings"
+					onClick={() => {
+						onOpenAccounts()
+						onClose()
+					}}
+				/>
+			</>
+		) : (
+			sections.map((section, sIdx) => (
+				<React.Fragment key={section.header}>
+					{sIdx > 0 && <MenuSeparator />}
+					<SectionHeader>{section.header}</SectionHeader>
+					{section.models.map((m) => (
+						<MenuItem
+							checked={currentModel === m.id}
+							key={m.id}
+							label={m.label}
+							onClick={() => {
+								onSelectModel(m.id)
+								onClose()
+							}}
+							rightLabel={m.description}
+						/>
+					))}
+				</React.Fragment>
+			))
+		)}
 	</div>
 )
 
@@ -725,6 +750,7 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 	mode,
 	autoApprovalSettings,
 	modelDisplayName,
+	navigateToSettings,
 	navigateToMcp,
 	onInsertSlashCommand,
 }) => {
@@ -747,9 +773,10 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 	const accountUsage = useMemo(() => getApiMetricsByGllmAccount(clineMessages), [clineMessages])
 
 	const orderedAccounts = useMemo(() => getOrderedAccounts(gllmAccounts), [gllmAccounts])
-	const primaryAccount = orderedAccounts[0] ?? null
+	const configuredAccounts = useMemo(() => orderedAccounts.filter(hasUsableAccountCredentials), [orderedAccounts])
+	const primaryAccount = configuredAccounts[0] ?? null
 	const currentModel = primaryAccount?.model ?? ""
-	const modelSections = useMemo(() => getModelSections(orderedAccounts), [orderedAccounts])
+	const modelSections = useMemo(() => getModelSections(configuredAccounts), [configuredAccounts])
 	const latestGllmRequest = useMemo(() => getLatestGllmRequestDisplay(clineMessages), [clineMessages])
 	const effectiveModelDisplayName = useMemo(() => {
 		if (latestGllmRequest) {
@@ -833,9 +860,9 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 	// Handle model selection
 	const handleSelectModel = useCallback(
 		async (modelId: string) => {
-			if (orderedAccounts.length === 0) return
+			if (configuredAccounts.length === 0) return
 			try {
-				const targetAccounts = orderedAccounts.filter(
+				const targetAccounts = configuredAccounts.filter(
 					(account) => account.id === primaryAccount?.id || accountSupportsModel(account, modelId),
 				)
 				await Promise.all(
@@ -849,7 +876,7 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 				console.error("Failed to update model:", err)
 			}
 		},
-		[orderedAccounts, primaryAccount],
+		[configuredAccounts, primaryAccount],
 	)
 
 	// 確認モード: disable all actions
@@ -962,6 +989,7 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 						<ModelPickerMenu
 							currentModel={currentModel}
 							onClose={closeMenu}
+							onOpenAccounts={() => navigateToSettings("accounts")}
 							onSelectModel={handleSelectModel}
 							sections={modelSections}
 						/>
@@ -1003,6 +1031,7 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 						<ModelPickerMenu
 							currentModel={currentModel}
 							onClose={closeMenu}
+							onOpenAccounts={() => navigateToSettings("accounts")}
 							onSelectModel={handleSelectModel}
 							sections={modelSections}
 						/>

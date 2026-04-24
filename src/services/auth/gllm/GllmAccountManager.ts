@@ -111,6 +111,15 @@ export class GllmAccountManager {
 		return stateManager.getGlobalStateKey("gllmAccounts") ?? []
 	}
 
+	private hasUsableCredentials(account: GllmAccount): boolean {
+		if (account.authType === "apikey") {
+			return !!account.apiKey?.trim()
+		}
+
+		const token = this.getTokenForAccount(account.id)
+		return !!(token?.accessToken || token?.refreshToken)
+	}
+
 	private async saveAccounts(accounts: GllmAccount[]): Promise<void> {
 		const stateManager = StateManager.get()
 		stateManager.setGlobalState("gllmAccounts", accounts)
@@ -270,7 +279,9 @@ export class GllmAccountManager {
 
 	async refreshDynamicModelMetadata(): Promise<void> {
 		const accounts = this.getAccounts().filter(
-			(account) => account.provider === "antigravity" || account.provider === "gemini" || account.provider === "gemini-cli",
+			(account) =>
+				this.hasUsableCredentials(account) &&
+				(account.provider === "antigravity" || account.provider === "gemini" || account.provider === "gemini-cli"),
 		)
 		await Promise.allSettled(
 			accounts.map(async (account) => {
@@ -455,7 +466,7 @@ export class GllmAccountManager {
 	// ─── Primary Account (first in list) ─────────────────────────────────────
 
 	getPrimaryAccount(): GllmAccount | undefined {
-		const accounts = this.getAccountsByPriority()
+		const accounts = this.getAccountsByPriority().filter((account) => this.hasUsableCredentials(account))
 		return accounts.length > 0 ? accounts[0] : undefined
 	}
 
