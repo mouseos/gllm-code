@@ -1,3 +1,4 @@
+import { GllmAccountManager } from "@/services/auth/gllm/GllmAccountManager"
 import { telemetryService } from "@/services/telemetry"
 import type { TaskConfig } from "../types/TaskConfig"
 import { computeLineDiffStats } from "./lineDiffStats"
@@ -9,11 +10,17 @@ import { computeLineDiffStats } from "./lineDiffStats"
 
 /**
  * Extracts provider and model information from task config for telemetry.
+ * When a gllm account is the primary credential, `buildApiHandler` has
+ * already overridden the effective provider to that account's provider —
+ * reflect the same override here so telemetry and the system-prompt tool
+ * converter agree on the backend that actually serves the request.
  */
 export function getModelInfo(config: TaskConfig): { providerId: string; modelId: string } {
 	const apiConfig = config.services.stateManager.getApiConfiguration()
 	const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-	const providerId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+	const primaryGllmAccount = GllmAccountManager.getInstance().getPrimaryAccount()
+	const rawProviderId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+	const providerId = primaryGllmAccount?.provider ?? rawProviderId
 	const modelId = config.api.getModel().id
 	return { providerId, modelId }
 }

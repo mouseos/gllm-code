@@ -90,6 +90,7 @@ import {
 	FullCommandExecutorConfig,
 	StandaloneTerminalManager,
 } from "@/integrations/terminal"
+import { GllmAccountManager } from "@/services/auth/gllm/GllmAccountManager"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { telemetryService } from "@/services/telemetry"
 import { ClineClient } from "@/shared/cline"
@@ -1715,7 +1716,17 @@ export class Task {
 		const model = this.api.getModel()
 		const apiConfig = this.stateManager.getApiConfiguration()
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
-		const providerId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		// buildApiHandler swaps to GllmAutoHandler whenever any gllm account is
+		// configured, and GllmAuto dispatches to gemini-cli / antigravity / gemini
+		// candidates — regardless of the user's saved actModeApiProvider. If we
+		// read actModeApiProvider here, the system prompt + native tool converter
+		// get the wrong provider (e.g. "openai" → OpenAI tool format) and the
+		// downstream gemini-cli request 400s with "Unknown name 'type'/'function'
+		// at function_declarations[*]". Prefer the primary gllm account's provider
+		// when one is present so every layer agrees on the effective backend.
+		const primaryGllmAccount = GllmAccountManager.getInstance().getPrimaryAccount()
+		const rawProviderId = (mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
+		const providerId = primaryGllmAccount?.provider ?? rawProviderId
 		const customPrompt = this.stateManager.getGlobalSettingsKey("customPrompt")
 		return { model, providerId, customPrompt, mode }
 	}
