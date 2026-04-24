@@ -33,7 +33,7 @@ interface AntigravityResponse {
 	response?: {
 		candidates?: Array<{
 			content?: {
-				role: string
+				role?: string
 				parts: Array<{
 					text?: string
 					functionCall?: { id?: string; name: string; args: Record<string, unknown> }
@@ -46,8 +46,52 @@ interface AntigravityResponse {
 			promptTokenCount?: number
 			candidatesTokenCount?: number
 			totalTokenCount?: number
+			thoughtsTokenCount?: number
 		}
+		// Present on any genuine response; absent on the server's
+		// "model retired" soft-fail envelopes.
+		modelVersion?: string
+		responseId?: string
 	}
+	traceId?: string
+}
+
+/**
+ * Thrown when Antigravity returns a 200 OK stream whose body is actually a
+ * hard-coded "this model is retired" notice (no modelVersion/responseId/
+ * usageMetadata). Caught by the GllmAuto router to trigger a fallback.
+ */
+export class ModelRetiredError extends Error {
+	readonly modelId: string
+	readonly providerId: string
+	constructor(providerId: string, modelId: string, message: string) {
+		super(message)
+		this.name = "ModelRetiredError"
+		this.providerId = providerId
+		this.modelId = modelId
+	}
+}
+
+const RETIRED_TEXT_PATTERNS = [
+	/no longer available/i,
+	/please switch to/i,
+	/please upgrade/i,
+	/upgrade to the latest/i,
+	/deprecated/i,
+]
+
+function looksLikeRetirementNotice(chunk: AntigravityResponse): string | null {
+	const resp = chunk.response
+	if (!resp) return null
+	// Decisive: a real response always carries modelVersion + responseId.
+	// A retirement envelope carries neither, nor usageMetadata.
+	if (resp.modelVersion || resp.responseId || resp.usageMetadata) return null
+	const text = resp.candidates?.[0]?.content?.parts?.[0]?.text ?? ""
+	if (!text) return null
+	for (const rx of RETIRED_TEXT_PATTERNS) {
+		if (rx.test(text)) return text
+	}
+	return null
 }
 
 export class AntigravityHandler implements ApiHandler {
@@ -180,6 +224,11 @@ export class AntigravityHandler implements ApiHandler {
 						chunk = JSON.parse(jsonStr) as AntigravityResponse
 					} catch {
 						continue
+					}
+
+					const retiredText = looksLikeRetirementNotice(chunk)
+					if (retiredText) {
+						throw new ModelRetiredError("antigravity", modelId, retiredText.trim())
 					}
 
 					const resp = chunk.response

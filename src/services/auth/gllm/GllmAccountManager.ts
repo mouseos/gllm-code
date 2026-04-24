@@ -70,7 +70,7 @@ const GEMINI_CLI_MODEL_PREFERENCE = [
 const ANTIGRAVITY_MODEL_PREFERENCE = [
 	"gemini-3.1-pro-high",
 	"gemini-3.1-pro-low",
-	"gemini-3.1-flash",
+	"gemini-3.1-flash-lite",
 	"gemini-2.5-pro",
 	"gemini-2.5-flash",
 ]
@@ -810,7 +810,9 @@ function getProjectHeaders(provider: GllmProviderType, token: string): Record<st
 async function loadAvailableModelsRequest(
 	projectId: string,
 	accessToken: string,
-): Promise<Record<string, { quotaInfo?: { remainingFraction?: number; resetTime?: string } }>> {
+): Promise<
+	Record<string, { quotaInfo?: { remainingFraction?: number; resetTime?: string }; tagTitle?: string; recommended?: boolean }>
+> {
 	const response = await fetch(FETCH_AVAILABLE_MODELS_URL, {
 		method: "POST",
 		headers: {
@@ -827,9 +829,23 @@ async function loadAvailableModelsRequest(
 	}
 
 	const data = (await response.json()) as {
-		models?: Record<string, { quotaInfo?: { remainingFraction?: number; resetTime?: string } }>
+		models?: Record<
+			string,
+			{ quotaInfo?: { remainingFraction?: number; resetTime?: string }; tagTitle?: string; recommended?: boolean }
+		>
 	}
-	return data.models ?? {}
+	const rawModels = data.models ?? {}
+	// Drop server-internal IDs that are not user-selectable (they respond 400
+	// on streamGenerateContent). Verified empirically on 2026-04-24.
+	const filtered: Record<
+		string,
+		{ quotaInfo?: { remainingFraction?: number; resetTime?: string }; tagTitle?: string; recommended?: boolean }
+	> = {}
+	for (const [id, info] of Object.entries(rawModels)) {
+		if (id.startsWith("chat_") || id.startsWith("tab_")) continue
+		filtered[id] = info
+	}
+	return filtered
 }
 
 function pickBestAvailableModel(provider: GllmProviderType, currentModel: string | undefined, availableModels: string[]): string {

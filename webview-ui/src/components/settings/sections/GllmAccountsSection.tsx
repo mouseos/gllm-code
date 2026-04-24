@@ -40,7 +40,8 @@ const ANTIGRAVITY_FALLBACK_MODELS = [
 	"auto",
 	"gemini-3.1-pro-high",
 	"gemini-3.1-pro-low",
-	"gemini-3.1-flash",
+	"gemini-3.1-flash-lite",
+	"gemini-3-flash",
 	"gemini-2.5-pro",
 	"gemini-2.5-flash",
 ]

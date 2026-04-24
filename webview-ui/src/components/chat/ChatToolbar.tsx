@@ -74,7 +74,8 @@ const GEMINI_CLI_MODEL_ENTRIES: ModelEntry[] = [
 const ANTIGRAVITY_FALLBACK_MODEL_ENTRIES: ModelEntry[] = [
 	{ id: "gemini-3.1-pro-high", label: "gemini-3.1-pro-high", description: "AN" },
 	{ id: "gemini-3.1-pro-low", label: "gemini-3.1-pro-low", description: "AN" },
-	{ id: "gemini-3.1-flash", label: "gemini-3.1-flash", description: "AN" },
+	{ id: "gemini-3.1-flash-lite", label: "gemini-3.1-flash-lite", description: "AN" },
+	{ id: "gemini-3-flash", label: "gemini-3-flash", description: "AN" },
 	{ id: "gemini-2.5-pro", label: "gemini-2.5-pro", description: "AN" },
 	{ id: "gemini-2.5-flash", label: "gemini-2.5-flash", description: "AN" },
 ]

@@ -5040,7 +5040,17 @@ export const antigravityModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"gemini-3.1-flash": {
+	"gemini-3.1-flash-lite": {
+		maxTokens: 65536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0,
+		outputPrice: 0,
+	},
+	// Still reachable today but will soft-fail in the future; kept as
+	// a fallback rung for auto mode and detected at the stream layer.
+	"gemini-3-flash": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,

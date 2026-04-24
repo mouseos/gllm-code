@@ -3,9 +3,40 @@ import { GllmAccountManager } from "@/services/auth/gllm/GllmAccountManager"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { ClineTool } from "@/shared/tools"
 import { ApiHandler, ApiHandlerModel, ApiRequestUsageContext, CommonApiHandlerOptions } from "../"
-import { AntigravityHandler } from "./antigravity"
+import { AntigravityHandler, ModelRetiredError } from "./antigravity"
 import { GeminiHandler } from "./gemini"
 import { GeminiCliHandler } from "./gemini-cli"
+
+// In-memory blacklist: "provider::model" → retireUntil(ms). Survives the
+// process but resets on extension reload, which is what we want — the server
+// may bring a model back.
+const MODEL_BLACKLIST = new Map<string, number>()
+const RETIREMENT_TTL_MS = 24 * 60 * 60 * 1000
+
+function blacklistKey(provider: string, modelId: string): string {
+	return `${provider}::${modelId}`
+}
+
+function isBlacklisted(provider: string, modelId: string): boolean {
+	const until = MODEL_BLACKLIST.get(blacklistKey(provider, modelId))
+	if (!until) return false
+	if (Date.now() > until) {
+		MODEL_BLACKLIST.delete(blacklistKey(provider, modelId))
+		return false
+	}
+	return true
+}
+
+function blacklistModel(provider: string, modelId: string, ttlMs: number = RETIREMENT_TTL_MS): void {
+	MODEL_BLACKLIST.set(blacklistKey(provider, modelId), Date.now() + ttlMs)
+}
+
+function providerDisplayName(provider: string): string {
+	if (provider === "antigravity") return "Antigravity"
+	if (provider === "gemini") return "Gemini API"
+	if (provider === "gemini-cli") return "Gemini CLI"
+	return provider
+}
 
 interface GllmAutoHandlerOptions extends CommonApiHandlerOptions {
 	apiModelId?: string
@@ -31,7 +62,7 @@ const GEMINI_CLI_FALLBACK_MODELS = [
 const ANTIGRAVITY_FALLBACK_MODELS = [
 	"gemini-3.1-pro-high",
 	"gemini-3.1-pro-low",
-	"gemini-3.1-flash",
+	"gemini-3.1-flash-lite",
 	"gemini-2.5-pro",
 	"gemini-2.5-flash",
 ]
@@ -52,13 +83,19 @@ export class GllmAutoHandler implements ApiHandler {
 		messages: ClineStorageMessage[],
 		tools?: ClineTool[],
 	): ReturnType<ApiHandler["createMessage"]> {
-		const candidates = this.getCandidates()
+		const allCandidates = this.getCandidates()
+		const candidates = allCandidates.filter((c) => !isBlacklisted(c.account.provider, c.modelId))
 		if (candidates.length === 0) {
-			throw new Error("No account configured. Please add an account in settings.")
+			throw new Error(
+				allCandidates.length === 0
+					? "No account configured. Please add an account in settings."
+					: "All available models are temporarily blacklisted (retired or quota-exhausted). Try again later.",
+			)
 		}
 
 		let lastError: Error | undefined
-		for (const candidate of candidates) {
+		for (let i = 0; i < candidates.length; i++) {
+			const candidate = candidates[i]
 			const handler = this.createCandidateHandler(candidate)
 			this.currentHandler = handler
 			this.currentUsageContext = {
@@ -79,8 +116,31 @@ export class GllmAutoHandler implements ApiHandler {
 				return
 			} catch (error) {
 				lastError = error instanceof Error ? error : new Error(String(error))
-				if (emittedOutput || !isRetryableQuotaError(lastError)) {
+				if (emittedOutput) {
 					throw lastError
+				}
+				if (error instanceof ModelRetiredError) {
+					blacklistModel(error.providerId, error.modelId)
+					const next = candidates[i + 1]
+					const display = `${providerDisplayName(candidate.account.provider)}: ${candidate.modelId}`
+					const nextDisplay = next ? `${providerDisplayName(next.account.provider)}: ${next.modelId}` : "（次候補なし）"
+					yield {
+						type: "reasoning",
+						reasoning: `🔄 ${display} は廃止されました。${nextDisplay} に切替します。`,
+					}
+					continue
+				}
+				if (!isRetryableQuotaError(lastError)) {
+					throw lastError
+				}
+				// For quota / rate / model-not-found we quietly fall through. Still
+				// emit a short notice so the user knows the router is switching.
+				const next = candidates[i + 1]
+				if (next) {
+					yield {
+						type: "reasoning",
+						reasoning: `🔄 ${providerDisplayName(candidate.account.provider)}: ${candidate.modelId} → ${providerDisplayName(next.account.provider)}: ${next.modelId} にフォールバック。`,
+					}
 				}
 			}
 		}
@@ -195,7 +255,7 @@ function getProviderAutoModels(account: GllmAccount, tier: "pro" | "flash"): str
 		const preferred =
 			tier === "pro"
 				? ["gemini-3.1-pro-high", "gemini-3.1-pro-low", "gemini-2.5-pro"]
-				: ["gemini-3.1-flash", "gemini-2.5-flash"]
+				: ["gemini-3.1-flash-lite", "gemini-2.5-flash"]
 		const available = accountAutoModels(account)
 		const matchingPreferred = preferred.filter((modelId) => available.includes(modelId))
 		return available.length > 0 ? (matchingPreferred.length > 0 ? matchingPreferred : available) : preferred
