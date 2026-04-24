@@ -12,6 +12,10 @@ import { GeminiCliHandler } from "./gemini-cli"
 // may bring a model back.
 const MODEL_BLACKLIST = new Map<string, number>()
 const RETIREMENT_TTL_MS = 24 * 60 * 60 * 1000
+// Short TTL used for 429 rate-limit bounces, so the auto loop stops
+// hammering the same exhausted (provider, model) tuple across N accounts.
+// Overridden when the error includes a concrete "reset after Xs" hint.
+const RATE_LIMIT_TTL_MS = 60 * 1000
 
 function blacklistKey(provider: string, modelId: string): string {
 	return `${provider}::${modelId}`
@@ -29,6 +33,34 @@ function isBlacklisted(provider: string, modelId: string): boolean {
 
 function blacklistModel(provider: string, modelId: string, ttlMs: number = RETIREMENT_TTL_MS): void {
 	MODEL_BLACKLIST.set(blacklistKey(provider, modelId), Date.now() + ttlMs)
+}
+
+/**
+ * Pull a quota-reset hint out of an error message. Matches patterns like
+ * "reset after 26s", "retry in 90 seconds", "Retry-After: 45".
+ * Returns milliseconds or undefined.
+ */
+function parseResetAfterMs(message: string): number | undefined {
+	const m =
+		message.match(/reset(?:s)? (?:after|in)\s+(\d+)\s*s/i) ??
+		message.match(/retry (?:after|in)\s+(\d+)\s*s/i) ??
+		message.match(/retry[- ]after[:=\s]+(\d+)/i)
+	if (!m) return undefined
+	const secs = Number.parseInt(m[1] ?? "", 10)
+	if (!Number.isFinite(secs) || secs <= 0 || secs > 3600) return undefined
+	return secs * 1000
+}
+
+function isRateLimitError(message: string): boolean {
+	const lower = message.toLowerCase()
+	return (
+		lower.includes("429") ||
+		lower.includes("quota") ||
+		lower.includes("rate limit") ||
+		lower.includes("rate_limit") ||
+		lower.includes("resource_exhausted") ||
+		lower.includes("exhausted your capacity")
+	)
 }
 
 function providerDisplayName(provider: string): string {
@@ -96,6 +128,12 @@ export class GllmAutoHandler implements ApiHandler {
 		let lastError: Error | undefined
 		for (let i = 0; i < candidates.length; i++) {
 			const candidate = candidates[i]
+			// Re-check blacklist inside the loop: a previous iteration may have
+			// just blacklisted this (provider, model) tuple after a 429 on a
+			// different account that shares the same model advertisement.
+			if (isBlacklisted(candidate.account.provider, candidate.modelId)) {
+				continue
+			}
 			const handler = this.createCandidateHandler(candidate)
 			this.currentHandler = handler
 			this.currentUsageContext = {
@@ -133,9 +171,25 @@ export class GllmAutoHandler implements ApiHandler {
 				if (!isRetryableQuotaError(lastError)) {
 					throw lastError
 				}
-				// For quota / rate / model-not-found we quietly fall through. Still
-				// emit a short notice so the user knows the router is switching.
-				const next = candidates[i + 1]
+				// 429 / quota-exhausted: blacklist this (provider, model) tuple
+				// for the reset window so the loop stops trying the same model
+				// across N accounts. Non-quota "unavailable" errors (e.g. model
+				// retired via message text) are handled above via
+				// ModelRetiredError and use the longer retirement TTL.
+				if (isRateLimitError(lastError.message)) {
+					const ttl = parseResetAfterMs(lastError.message) ?? RATE_LIMIT_TTL_MS
+					blacklistModel(candidate.account.provider, candidate.modelId, ttl)
+				}
+				// Find the actual next candidate (one that isn't blacklisted)
+				// so the fallback message reflects where we'll really land.
+				let nextIdx = i + 1
+				while (
+					nextIdx < candidates.length &&
+					isBlacklisted(candidates[nextIdx].account.provider, candidates[nextIdx].modelId)
+				) {
+					nextIdx++
+				}
+				const next = candidates[nextIdx]
 				if (next) {
 					yield {
 						type: "reasoning",
