@@ -90,22 +90,26 @@ export async function doSendMessage(controller: Controller, args: SendMessageArg
 }
 
 /**
- * Extract the text payload from a completion_result ask. The ask's `text`
- * itself is usually empty — the real assistant reply body lives either in
- * the ask's `text` (sometimes populated) or in the preceding `say: text`
- * message. We prefer the ask if it carries a body, otherwise walk backwards
- * for the last non-empty `say: text`.
+ * Find the most recent assistant-visible reply body. Observed message
+ * flow (gllm_get_messages probe, 2026-04-24): the model's answer is
+ * emitted as `say: "completion_result"` with the body in `text`, then a
+ * `say: "task_progress"` update, then a terminal `ask: "completion_result"`
+ * whose `text` is empty (it's just the completion marker). Earlier turns
+ * stream `say: "text"` deltas. Walk backwards, prefer whichever of those
+ * surfaces a non-empty body.
  */
 function extractAssistantReply(
 	msgs: Array<{ ask?: string; say?: string; text?: string; reasoning?: string; ts: number }>,
 ): { text: string; ts: number } | undefined {
 	for (let i = msgs.length - 1; i >= 0; i--) {
 		const m = msgs[i]
-		if (m.say === "text" && typeof m.text === "string" && m.text.trim().length > 0) {
-			return { text: m.text, ts: m.ts }
+		const text = m.text
+		if (typeof text !== "string" || text.trim().length === 0) continue
+		if (m.say === "completion_result" || m.say === "text") {
+			return { text, ts: m.ts }
 		}
-		if (m.ask === "completion_result" && typeof m.text === "string" && m.text.trim().length > 0) {
-			return { text: m.text, ts: m.ts }
+		if (m.ask === "completion_result") {
+			return { text, ts: m.ts }
 		}
 	}
 	return undefined
