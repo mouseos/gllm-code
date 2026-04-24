@@ -64,11 +64,12 @@ export default function McpServerSettingsSection({
 
 	const connectCommand = useMemo(() => {
 		if (!running || !connectUrl) return ""
+		// Claude Code ≥ 2.x moved the URL to a positional argument after the
+		// name. Older `--url` flag is no longer recognised.
 		return [
-			"claude mcp add gllm-code \\",
-			"  --transport http \\",
-			`  --url ${connectUrl} \\`,
-			`  --header "Authorization: Bearer ${token}"`,
+			"claude mcp add --transport http \\",
+			`  --header "Authorization: Bearer ${token}" \\`,
+			`  gllm-code ${connectUrl}`,
 		].join("\n")
 	}, [running, connectUrl, token])
 
