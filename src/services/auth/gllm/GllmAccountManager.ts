@@ -1000,8 +1000,15 @@ async function loadCodeAssistQuotaRequest(projectId: string, accessToken: string
 		}))
 }
 
+// Must stay in lockstep with `getAntigravityUserAgent` in antigravity.ts.
+// UA drift between metadata (fetchAvailableModels, loadCodeAssist) and the
+// actual streamGenerateContent request causes the advertised model set to
+// disagree with what the server will actually serve. Probe confirmed the
+// two versions currently return the same 17 models, but the server can
+// add UA gating at any time — keep one version number across both call
+// sites.
 function getAntigravityUserAgent(): string {
-	const version = "1.15.8"
+	const version = "1.20.0"
 	const platform = process.platform === "darwin" ? "macos" : process.platform
 	return `antigravity/${version} ${platform}/${process.arch}`
 }

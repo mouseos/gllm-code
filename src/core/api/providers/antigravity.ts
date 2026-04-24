@@ -6,6 +6,7 @@ import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, ApiHandlerModel, ApiRequestUsageContext, CommonApiHandlerOptions } from "../"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
+import { iterSseEvents } from "../transform/sse-stream"
 import { ApiStream } from "../transform/stream"
 
 const CODE_ASSIST_VERSION = "v1internal"
@@ -154,9 +155,9 @@ export class AntigravityHandler implements ApiHandler {
 		const { id: modelId } = this.getModel()
 		const account = this.options.accountId
 			? this.accountManager.getAccounts().find((candidate) => candidate.id === this.options.accountId)
-			: this.accountManager.getPrimaryAccount()
+			: this.accountManager.getAccountsByPriority().find((candidate) => candidate.provider === "antigravity")
 		if (!account) {
-			throw new Error("No account configured. Please add an account in settings.")
+			throw new Error("No Antigravity account configured. Please add one in settings.")
 		}
 		this.currentUsageContext = {
 			providerId: "antigravity",
@@ -200,87 +201,65 @@ export class AntigravityHandler implements ApiHandler {
 
 		const response = await this.sendRequest(requestBody, token, account.id)
 
-		const reader = response.body?.getReader()
-		if (!reader) throw new Error("No response body")
-
-		const decoder = new TextDecoder()
-		let buffer = ""
 		let promptTokens = 0
 		let outputTokens = 0
 
-		try {
-			while (true) {
-				const { done, value } = await reader.read()
-				if (done) break
-				buffer += decoder.decode(value, { stream: true })
-				const lines = buffer.split("\n")
-				buffer = lines.pop() || ""
+		for await (const payload of iterSseEvents(response.body)) {
+			let chunk: AntigravityResponse
+			try {
+				chunk = JSON.parse(payload) as AntigravityResponse
+			} catch {
+				continue
+			}
 
-				for (const line of lines) {
-					const trimmed = line.trim()
-					if (!trimmed.startsWith("data: ")) continue
-					const jsonStr = trimmed.slice(6)
-					if (jsonStr === "[DONE]") continue
+			const retiredText = looksLikeRetirementNotice(chunk)
+			if (retiredText) {
+				throw new ModelRetiredError("antigravity", modelId, retiredText.trim())
+			}
 
-					let chunk: AntigravityResponse
-					try {
-						chunk = JSON.parse(jsonStr) as AntigravityResponse
-					} catch {
-						continue
-					}
+			const resp = chunk.response
+			if (!resp) continue
 
-					const retiredText = looksLikeRetirementNotice(chunk)
-					if (retiredText) {
-						throw new ModelRetiredError("antigravity", modelId, retiredText.trim())
-					}
+			if (resp.usageMetadata) {
+				promptTokens = resp.usageMetadata.promptTokenCount ?? 0
+				outputTokens = resp.usageMetadata.candidatesTokenCount ?? 0
+			}
 
-					const resp = chunk.response
-					if (!resp) continue
-
-					if (resp.usageMetadata) {
-						promptTokens = resp.usageMetadata.promptTokenCount ?? 0
-						outputTokens = resp.usageMetadata.candidatesTokenCount ?? 0
-					}
-
-					const parts = resp.candidates?.[0]?.content?.parts ?? []
-					for (const part of parts) {
-						if (part.thought && part.text) {
-							yield { type: "reasoning", reasoning: part.text }
-							continue
-						}
-						if (part.text !== undefined && part.text !== "") {
-							yield { type: "text", text: part.text }
-						}
-						if (part.functionCall) {
-							const fn = part.functionCall
-							const args = fn.args ?? {}
-							// Skip empty-arg function calls (matches gemini.ts behavior);
-							// the downstream parser treats tool calls without args as
-							// "no tool used" and forces a retry loop.
-							const hasArgs = Object.values(args).some((v) => v !== undefined && v !== null && v !== "")
-							if (hasArgs || Object.keys(args).length === 0) {
-								const toolCallId = fn.id?.trim() || `call_${randomUUID().replace(/-/g, "").slice(0, 24)}`
-								yield {
-									type: "tool_calls",
-									id: resp.responseId,
-									tool_call: {
-										call_id: toolCallId,
-										function: {
-											id: toolCallId,
-											name: fn.name,
-											// Downstream expects a JSON-stringified argument blob,
-											// not a raw object.
-											arguments: JSON.stringify(args),
-										},
-									},
-								}
-							}
+			const parts = resp.candidates?.[0]?.content?.parts ?? []
+			for (const part of parts) {
+				if (part.thought && part.text) {
+					yield { type: "reasoning", reasoning: part.text }
+					continue
+				}
+				if (part.text !== undefined && part.text !== "") {
+					yield { type: "text", text: part.text }
+				}
+				if (part.functionCall) {
+					const fn = part.functionCall
+					const args = fn.args ?? {}
+					// Skip empty-arg function calls (matches gemini.ts behavior);
+					// the downstream parser treats tool calls without args as
+					// "no tool used" and forces a retry loop.
+					const hasArgs = Object.values(args).some((v) => v !== undefined && v !== null && v !== "")
+					if (hasArgs || Object.keys(args).length === 0) {
+						const toolCallId = fn.id?.trim() || `call_${randomUUID().replace(/-/g, "").slice(0, 24)}`
+						yield {
+							type: "tool_calls",
+							id: resp.responseId,
+							tool_call: {
+								call_id: toolCallId,
+								function: {
+									id: toolCallId,
+									name: fn.name,
+									// Downstream expects a JSON-stringified argument blob,
+									// not a raw object.
+									arguments: JSON.stringify(args),
+								},
+							},
 						}
 					}
 				}
 			}
-		} finally {
-			reader.releaseLock()
 		}
 
 		yield {

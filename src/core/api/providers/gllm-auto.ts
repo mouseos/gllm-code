@@ -8,14 +8,13 @@ import { GeminiHandler } from "./gemini"
 import { GeminiCliHandler } from "./gemini-cli"
 
 // In-memory blacklist: "provider::model" → retireUntil(ms). Survives the
-// process but resets on extension reload, which is what we want — the server
-// may bring a model back.
+// process but resets on extension reload. Used only for hard retirement
+// (ModelRetiredError). 429/rate-limit errors do NOT blacklist here because
+// the server's per-minute quota is transient; blacklisting turned a brief
+// rate-limit into a minute-long "All available models are temporarily
+// blacklisted" state visible to the user.
 const MODEL_BLACKLIST = new Map<string, number>()
 const RETIREMENT_TTL_MS = 24 * 60 * 60 * 1000
-// Short TTL used for 429 rate-limit bounces, so the auto loop stops
-// hammering the same exhausted (provider, model) tuple across N accounts.
-// Overridden when the error includes a concrete "reset after Xs" hint.
-const RATE_LIMIT_TTL_MS = 60 * 1000
 
 function blacklistKey(provider: string, modelId: string): string {
 	return `${provider}::${modelId}`
@@ -33,34 +32,6 @@ function isBlacklisted(provider: string, modelId: string): boolean {
 
 function blacklistModel(provider: string, modelId: string, ttlMs: number = RETIREMENT_TTL_MS): void {
 	MODEL_BLACKLIST.set(blacklistKey(provider, modelId), Date.now() + ttlMs)
-}
-
-/**
- * Pull a quota-reset hint out of an error message. Matches patterns like
- * "reset after 26s", "retry in 90 seconds", "Retry-After: 45".
- * Returns milliseconds or undefined.
- */
-function parseResetAfterMs(message: string): number | undefined {
-	const m =
-		message.match(/reset(?:s)? (?:after|in)\s+(\d+)\s*s/i) ??
-		message.match(/retry (?:after|in)\s+(\d+)\s*s/i) ??
-		message.match(/retry[- ]after[:=\s]+(\d+)/i)
-	if (!m) return undefined
-	const secs = Number.parseInt(m[1] ?? "", 10)
-	if (!Number.isFinite(secs) || secs <= 0 || secs > 3600) return undefined
-	return secs * 1000
-}
-
-function isRateLimitError(message: string): boolean {
-	const lower = message.toLowerCase()
-	return (
-		lower.includes("429") ||
-		lower.includes("quota") ||
-		lower.includes("rate limit") ||
-		lower.includes("rate_limit") ||
-		lower.includes("resource_exhausted") ||
-		lower.includes("exhausted your capacity")
-	)
 }
 
 function providerDisplayName(provider: string): string {
@@ -83,11 +54,16 @@ type Candidate = {
 
 const AUTO_MODEL_IDS = new Set(["auto pro", "auto flash", "auto"])
 const GEMINI_FALLBACK_MODELS = ["gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
+// Model names verified against `v1internal:retrieveUserQuota` for this account
+// (2026-04-24 probe: the quota response lists these exact ids, including the
+// `-preview` suffix). Don't speculate: probe with scripts/experiments/ if the
+// server's advertised set changes.
 const GEMINI_CLI_FALLBACK_MODELS = [
-	"gemini-3.1-pro",
-	"gemini-3-pro",
+	"gemini-3.1-pro-preview",
+	"gemini-3-pro-preview",
 	"gemini-2.5-pro",
-	"gemini-3-flash",
+	"gemini-3-flash-preview",
+	"gemini-3.1-flash-lite-preview",
 	"gemini-2.5-flash",
 	"gemini-2.5-flash-lite",
 ]
@@ -171,25 +147,12 @@ export class GllmAutoHandler implements ApiHandler {
 				if (!isRetryableQuotaError(lastError)) {
 					throw lastError
 				}
-				// 429 / quota-exhausted: blacklist this (provider, model) tuple
-				// for the reset window so the loop stops trying the same model
-				// across N accounts. Non-quota "unavailable" errors (e.g. model
-				// retired via message text) are handled above via
-				// ModelRetiredError and use the longer retirement TTL.
-				if (isRateLimitError(lastError.message)) {
-					const ttl = parseResetAfterMs(lastError.message) ?? RATE_LIMIT_TTL_MS
-					blacklistModel(candidate.account.provider, candidate.modelId, ttl)
-				}
-				// Find the actual next candidate (one that isn't blacklisted)
-				// so the fallback message reflects where we'll really land.
-				let nextIdx = i + 1
-				while (
-					nextIdx < candidates.length &&
-					isBlacklisted(candidates[nextIdx].account.provider, candidates[nextIdx].modelId)
-				) {
-					nextIdx++
-				}
-				const next = candidates[nextIdx]
+				// Quota / rate-limit / model-not-found: fall through without
+				// blacklisting. Blacklisting rate-limit errors caused
+				// legitimate transient 429s to lock out all candidates for
+				// the TTL window. Rely on the inner candidate loop + the
+				// ModelRetiredError path for hard retirement.
+				const next = candidates[i + 1]
 				if (next) {
 					yield {
 						type: "reasoning",
@@ -275,13 +238,19 @@ function resolveModelsForAccount(account: GllmAccount, selectedModel: string): s
 }
 
 function accountSupportsModel(account: GllmAccount, modelId: string): boolean {
-	const knownModels = new Set<string>(
-		[...(account.availableModels ?? []), account.model, ...getFallbackModelsForProvider(account.provider)].filter(
-			(value): value is string => !!value,
-		),
-	)
-
-	return knownModels.has(modelId)
+	// Only trust what the server advertises for this specific provider, plus
+	// the hardcoded fallback set that survived a live probe. Do NOT include
+	// `account.model` blindly: it carries over when a user switches the
+	// account's provider (e.g. from gemini-cli to antigravity), leaving a
+	// stale id like `gemini-3.1-pro-preview` that antigravity 404s on.
+	const advertised = account.availableModels ?? []
+	if (advertised.length > 0) {
+		return advertised.includes(modelId)
+	}
+	// No advertisement loaded yet (first sign-in, transient fetch failure):
+	// fall back to the probe-verified list for this provider so auto mode
+	// isn't bricked until the next refresh.
+	return getFallbackModelsForProvider(account.provider).includes(modelId)
 }
 
 function getFallbackModelsForProvider(provider: GllmAccount["provider"]): string[] {
@@ -295,43 +264,42 @@ function getFallbackModelsForProvider(provider: GllmAccount["provider"]): string
 	}
 }
 
+// Per-tier candidate pools, by provider. Probe-verified — do not guess.
+//   gemini-cli:  retrieveUserQuota (2026-04-24) returns `-preview` suffixes
+//   antigravity: fetchAvailableModels (2026-04-24) returns `-high/-low`
+// Keep these lists intersected with the account's live `availableModels`
+// — we never want to fabricate a model id the server didn't advertise.
+const TIER_PREFERENCE: Record<string, { pro: string[]; flash: string[] }> = {
+	"gemini-cli": {
+		pro: ["gemini-3.1-pro-preview", "gemini-3-pro-preview", "gemini-2.5-pro"],
+		flash: ["gemini-3-flash-preview", "gemini-3.1-flash-lite-preview", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
+	},
+	antigravity: {
+		pro: ["gemini-3.1-pro-high", "gemini-3.1-pro-low", "gemini-2.5-pro", "gemini-3-pro-high"],
+		flash: ["gemini-3.1-flash-lite", "gemini-3-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"],
+	},
+	gemini: {
+		pro: ["gemini-2.5-pro"],
+		flash: ["gemini-2.5-flash", "gemini-2.5-flash-lite"],
+	},
+}
+
 function getProviderAutoModels(account: GllmAccount, tier: "pro" | "flash"): string[] {
-	if (account.provider === "gemini-cli") {
-		// Only list models we've verified exist on Gemini CLI auth. `-preview`
-		// suffixes were speculative and returned immediate errors (the
-		// isRetryableQuotaError matcher caught them, so the fallback looked
-		// like "4 rapid swaps in seconds" — which is accurate but useless).
-		// Preview variants come back automatically if the account's
-		// availableModels list includes them at runtime.
-		const preferred =
-			tier === "pro"
-				? ["gemini-3.1-pro", "gemini-3-pro", "gemini-2.5-pro"]
-				: ["gemini-3-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite"]
-		const available = accountAutoModels(account)
-		// Prefer what the account actually advertises, intersected with our
-		// known-good list. If the account hasn't advertised any models yet
-		// (first login, stale cache) we fall back to `preferred` as a seed.
-		const intersection = preferred.filter((modelId) => available.includes(modelId))
-		if (intersection.length > 0) return intersection
-		if (available.length > 0) {
-			// Filter the advertised list to ones that look like
-			// non-preview generally-available names to avoid landing on
-			// models that routinely 400.
-			const filteredAvailable = available.filter((m) => !m.includes("-preview"))
-			return filteredAvailable.length > 0 ? filteredAvailable : available
-		}
-		return preferred
-	}
-	if (account.provider === "antigravity") {
-		const preferred =
-			tier === "pro"
-				? ["gemini-3.1-pro-high", "gemini-3.1-pro-low", "gemini-2.5-pro"]
-				: ["gemini-3.1-flash-lite", "gemini-2.5-flash"]
-		const available = accountAutoModels(account)
-		const matchingPreferred = preferred.filter((modelId) => available.includes(modelId))
-		return available.length > 0 ? (matchingPreferred.length > 0 ? matchingPreferred : available) : preferred
-	}
-	return tier === "pro" ? ["gemini-2.5-pro"] : ["gemini-2.5-flash", "gemini-2.5-flash-lite"]
+	const prefs = TIER_PREFERENCE[account.provider]
+	if (!prefs) return []
+	const preferred = prefs[tier]
+	const available = accountAutoModels(account)
+	// Intersection only. We never leak models the account didn't advertise,
+	// and we never cross-pollinate flash↔pro when the preferred set misses —
+	// the old "return all available" path meant `auto flash` could select a
+	// pro model (or vice versa) just because the advertised list happened
+	// to include it in some order.
+	const intersection = preferred.filter((modelId) => available.includes(modelId))
+	if (intersection.length > 0) return intersection
+	// Advertisement not loaded yet (first sign-in / transient fetch
+	// failure): fall back to the probe-verified preferred list so auto mode
+	// stays functional until the next refresh.
+	return available.length === 0 ? preferred : []
 }
 
 function accountAutoModels(account: GllmAccount): string[] {
@@ -340,29 +308,22 @@ function accountAutoModels(account: GllmAccount): string[] {
 
 function isRetryableQuotaError(error: Error): boolean {
 	const message = error.message.toLowerCase()
-	// Quota / rate limiting (original cases)
-	if (message.includes("429") || message.includes("quota") || message.includes("rate limit")) {
-		return true
-	}
-	// Model retired / unavailable / unknown — skip this candidate and try the next one.
-	// Example: "Gemini 3 Pro is no longer available. Please switch to Gemini 3.1 Pro..."
-	if (
-		message.includes("no longer available") ||
-		message.includes("not available") ||
-		message.includes("is not supported") ||
-		message.includes("unsupported model") ||
-		message.includes("unknown model") ||
-		message.includes("model not found") ||
-		message.includes("please switch to") ||
-		message.includes("please upgrade") ||
-		message.includes("upgrade to the latest") ||
-		message.includes("deprecated")
-	) {
-		return true
-	}
-	// 404 on the model endpoint also indicates the model is gone.
-	if (message.includes("404") && (message.includes("model") || message.includes("gemini"))) {
-		return true
-	}
+	// Transient rate limit / quota — safe to retry against the next
+	// candidate. Narrowly scoped: `429` only matches when we actually saw
+	// that status code word-adjacent, `resource_exhausted` matches Google's
+	// protobuf enum, and `exhausted your capacity` matches the observed
+	// Gemini CLI prose. We intentionally do NOT match broad tokens like
+	// "quota" alone, "not available", "deprecated", or bare "404": those
+	// surface as 400/404 schema/UA/payload bugs that need to fail loudly
+	// instead of being papered over by silent model fallback. Hard model
+	// retirement (200-OK with a retirement prose) is routed through
+	// ModelRetiredError and handled by a separate arm of the loop.
+	if (/\b429\b/.test(message)) return true
+	if (message.includes("resource_exhausted")) return true
+	if (message.includes("rate_limit_exceeded") || message.includes("rate limit exceeded")) return true
+	if (message.includes("exhausted your capacity")) return true
+	// `Retry-After` header echoed in an error message is also a strong
+	// signal that the caller should retry later on a different candidate.
+	if (/retry[- ]after/.test(message)) return true
 	return false
 }

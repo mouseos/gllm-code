@@ -6,6 +6,7 @@ import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, ApiHandlerModel, ApiRequestUsageContext, CommonApiHandlerOptions } from "../"
 import { convertAnthropicMessageToGemini } from "../transform/gemini-format"
+import { iterSseEvents } from "../transform/sse-stream"
 import { ApiStream } from "../transform/stream"
 
 const CODE_ASSIST_BASE = "https://cloudcode-pa.googleapis.com"
@@ -21,7 +22,11 @@ interface CodeAssistResponse {
 		candidates?: Array<{
 			content?: {
 				role: string
-				parts: Array<{ text?: string; functionCall?: { name: string; args: Record<string, unknown> }; thought?: boolean }>
+				parts: Array<{
+					text?: string
+					functionCall?: { id?: string; name: string; args: Record<string, unknown> }
+					thought?: boolean
+				}>
 			}
 			finishReason?: string
 		}>
@@ -30,6 +35,8 @@ interface CodeAssistResponse {
 			candidatesTokenCount?: number
 			totalTokenCount?: number
 		}
+		responseId?: string
+		modelVersion?: string
 	}
 }
 
@@ -47,9 +54,9 @@ export class GeminiCliHandler implements ApiHandler {
 		const { id: modelId, info } = this.getModel()
 		const account = this.options.accountId
 			? this.accountManager.getAccounts().find((candidate) => candidate.id === this.options.accountId)
-			: this.accountManager.getPrimaryAccount()
+			: this.accountManager.getAccountsByPriority().find((candidate) => candidate.provider === "gemini-cli")
 		if (!account) {
-			throw new Error("No account configured. Please add an account in settings.")
+			throw new Error("No Gemini CLI account configured. Please add one in settings.")
 		}
 		this.currentUsageContext = {
 			providerId: "gemini-cli",
@@ -85,6 +92,7 @@ export class GeminiCliHandler implements ApiHandler {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",
+				Accept: "text/event-stream",
 				Authorization: `Bearer ${token}`,
 			},
 			body: JSON.stringify(requestBody),
@@ -95,66 +103,58 @@ export class GeminiCliHandler implements ApiHandler {
 			throw new Error(`Gemini CLI API error ${response.status}: ${errText}`)
 		}
 
-		const reader = response.body?.getReader()
-		if (!reader) throw new Error("No response body")
-
-		const decoder = new TextDecoder()
-		let buffer = ""
 		let promptTokens = 0
 		let outputTokens = 0
 
-		try {
-			while (true) {
-				const { done, value } = await reader.read()
-				if (done) break
-				buffer += decoder.decode(value, { stream: true })
-				const lines = buffer.split("\n")
-				buffer = lines.pop() || ""
+		for await (const payload of iterSseEvents(response.body)) {
+			let chunk: CodeAssistResponse
+			try {
+				chunk = JSON.parse(payload) as CodeAssistResponse
+			} catch {
+				continue
+			}
 
-				for (const line of lines) {
-					const trimmed = line.trim()
-					if (!trimmed.startsWith("data: ")) continue
-					const jsonStr = trimmed.slice(6)
-					if (jsonStr === "[DONE]") continue
+			const inner = chunk.response
+			if (!inner) continue
 
-					let chunk: CodeAssistResponse
-					try {
-						chunk = JSON.parse(jsonStr) as CodeAssistResponse
-					} catch {
-						continue
+			if (inner.usageMetadata) {
+				promptTokens = inner.usageMetadata.promptTokenCount ?? 0
+				outputTokens = inner.usageMetadata.candidatesTokenCount ?? 0
+			}
+
+			const parts = inner.candidates?.[0]?.content?.parts ?? []
+			for (const part of parts) {
+				// `thought: true` parts carry reasoning deltas — surface them as
+				// reasoning chunks so the UI shows the thinking stream.
+				if (part.thought) {
+					if (part.text !== undefined && part.text !== "") {
+						yield { type: "reasoning", reasoning: part.text }
 					}
-
-					const response = chunk.response
-					if (!response) continue
-
-					if (response.usageMetadata) {
-						promptTokens = response.usageMetadata.promptTokenCount ?? 0
-						outputTokens = response.usageMetadata.candidatesTokenCount ?? 0
-					}
-
-					const parts = response.candidates?.[0]?.content?.parts ?? []
-					for (const part of parts) {
-						if (part.thought) continue
-						if (part.text !== undefined && part.text !== "") {
-							yield { type: "text", text: part.text }
-						}
-						if (part.functionCall) {
-							yield {
-								type: "tool_calls",
-								tool_call: {
-									call_id: `call_${randomUUID().replace(/-/g, "").slice(0, 24)}`,
-									function: {
-										name: part.functionCall.name,
-										arguments: part.functionCall.args,
-									},
-								},
-							}
-						}
+					continue
+				}
+				if (part.text !== undefined && part.text !== "") {
+					yield { type: "text", text: part.text }
+				}
+				if (part.functionCall) {
+					const fn = part.functionCall
+					const args = fn.args ?? {}
+					const toolCallId = fn.id?.trim() || `call_${randomUUID().replace(/-/g, "").slice(0, 24)}`
+					yield {
+						type: "tool_calls",
+						id: inner.responseId,
+						tool_call: {
+							call_id: toolCallId,
+							function: {
+								id: toolCallId,
+								name: fn.name,
+								// Downstream parses this with JSON.parse — must be a
+								// string, not an object.
+								arguments: JSON.stringify(args),
+							},
+						},
 					}
 				}
 			}
-		} finally {
-			reader.releaseLock()
 		}
 
 		yield {
