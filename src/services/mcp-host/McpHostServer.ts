@@ -26,8 +26,11 @@ import { Logger } from "@/shared/services/Logger"
 
 import { approvalStoreFor } from "./ApprovalStore"
 import { tryGetActiveController } from "./currentController"
+import { localForwarder } from "./forwarding"
 import { getPreferredPort, listenWithPreferred, rememberPort } from "./portAllocator"
 import { RegistryEntry, register, unregister } from "./registry"
+import { dispatchToolLocal } from "./toolDispatch"
+import { ToolError } from "./toolImpl"
 import { registerGllmTools, ToolContext } from "./tools"
 
 export interface McpHostServerOptions {
@@ -124,6 +127,8 @@ function buildMcpServer(version: string, getClientName: () => string, getRequire
 		getApprovalStore: () => approvalStoreFor(tryGetActiveController()),
 		requireApproval: getRequireApproval,
 		askUserForApproval,
+		forward: localForwarder,
+		isBroker: false,
 	}
 
 	registerGllmTools(server, ctx)
@@ -183,9 +188,59 @@ export async function startMcpHostServer(options: McpHostServerOptions): Promise
 
 	const httpServer = http.createServer(async (req, res) => {
 		try {
-			// Only `/mcp` is public. Everything else gets a 404 so we don't
-			// accidentally advertise other routes.
-			if (!req.url || !req.url.startsWith("/mcp")) {
+			if (!req.url) {
+				res.writeHead(404, { "Content-Type": "text/plain" })
+				res.end("Not found")
+				return
+			}
+
+			// Internal RPC used by the broker to forward tool calls from
+			// external MCP clients into this window's Controller. Loopback +
+			// Bearer token, same auth as `/mcp`.
+			if (req.url.startsWith("/internal/run-tool")) {
+				if (!authorize(req, token)) {
+					res.writeHead(401, { "Content-Type": "application/json" })
+					res.end(JSON.stringify({ error: "unauthorized" }))
+					return
+				}
+				if (req.method !== "POST") {
+					res.writeHead(405, { "Content-Type": "application/json" })
+					res.end(JSON.stringify({ error: "method_not_allowed" }))
+					return
+				}
+				let body: unknown
+				try {
+					body = await readBody(req)
+				} catch (err) {
+					res.writeHead(400, { "Content-Type": "application/json" })
+					res.end(JSON.stringify({ error: "invalid_body", message: String(err) }))
+					return
+				}
+				const payload = body as { name?: unknown; args?: unknown; clientName?: unknown } | undefined
+				if (!payload || typeof payload.name !== "string") {
+					res.writeHead(400, { "Content-Type": "application/json" })
+					res.end(JSON.stringify({ error: "invalid_payload" }))
+					return
+				}
+				try {
+					const reply = await dispatchToolLocal({
+						name: payload.name,
+						args: (payload.args as Record<string, unknown>) ?? {},
+						clientName: typeof payload.clientName === "string" ? payload.clientName : "unknown-mcp-client",
+					})
+					res.writeHead(200, { "Content-Type": "application/json" })
+					res.end(JSON.stringify(reply))
+				} catch (err) {
+					const msg = err instanceof ToolError ? err.message : String(err)
+					res.writeHead(400, { "Content-Type": "application/json" })
+					res.end(msg.startsWith("{") ? msg : JSON.stringify({ error: "tool_failed", message: msg }))
+				}
+				return
+			}
+
+			// Only `/mcp` and `/internal/*` are public. Everything else gets a
+			// 404 so we don't accidentally advertise other routes.
+			if (!req.url.startsWith("/mcp")) {
 				res.writeHead(404, { "Content-Type": "text/plain" })
 				res.end("Not found")
 				return
@@ -220,13 +275,15 @@ export async function startMcpHostServer(options: McpHostServerOptions): Promise
 	await listenWithPreferred(httpServer, BIND_HOST, preferredPort)
 
 	const address = httpServer.address() as AddressInfo
+	const now = new Date().toISOString()
 	const entry: RegistryEntry = {
 		windowId,
 		workspaceRoot: options.workspaceRoot,
 		port: address.port,
 		token,
 		pid: process.pid,
-		startedAt: new Date().toISOString(),
+		startedAt: now,
+		lastFocusedAt: now,
 		version: options.version,
 	}
 	await rememberPort(options.workspaceRoot, entry.port)

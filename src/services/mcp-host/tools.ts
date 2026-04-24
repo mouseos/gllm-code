@@ -1,46 +1,34 @@
 /**
- * MCP tool surface exposed by gllm-code to outside clients. Each tool is a
- * thin bridge onto the active Controller / Task.
+ * MCP tool registration for the per-window and broker MCP servers. The
+ * actual tool behaviour lives in `toolImpl.ts` + `toolDispatch.ts`; this
+ * file just wires the Zod schemas and the approval gate.
+ *
+ * When registered on the broker, each tool also accepts an optional
+ * `workspace` argument that the broker uses to select a target window.
  */
 
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
-import pWaitFor from "p-wait-for"
 import { z } from "zod"
 
-import type { Controller } from "@/core/controller"
-import { Logger } from "@/shared/services/Logger"
-
 import type { ApprovalStore } from "./ApprovalStore"
-import { resolveActiveControllerOrOpen, tryGetActiveController } from "./currentController"
-import { pendingOriginForNextInitTask } from "./originHook"
+import { type ForwardFn } from "./forwarding"
+import { ToolError } from "./toolImpl"
 
 export interface ToolContext {
 	/** Name reported by the MCP client during initialize(). */
 	getClientName(): string
 	getApprovalStore(): ApprovalStore | undefined
 	requireApproval(): boolean
-	/**
-	 * Shows a modal dialog. Returns the user's decision. Implementation lives
-	 * alongside McpHostServer so it can `await` a VS Code modal without
-	 * pulling a UI dependency into tools.ts.
-	 */
+	/** Modal approval prompt. Implementation lives alongside the server. */
 	askUserForApproval(clientName: string): Promise<"allow" | "deny">
-}
-
-/** JSON-serialise, default to empty object on undefined. */
-function reply(payload: unknown): { content: Array<{ type: "text"; text: string }> } {
-	return {
-		content: [
-			{
-				type: "text",
-				text: JSON.stringify(payload ?? {}, null, 2),
-			},
-		],
-	}
-}
-
-function toolError(message: string, extra?: Record<string, unknown>): never {
-	throw new Error(JSON.stringify({ error: message, ...extra }))
+	/**
+	 * Tool executor — either a direct-to-local dispatcher (per-window server
+	 * default) or a broker router that picks a target window from the
+	 * `workspace` arg and may HTTP-forward. Returns the raw MCP reply.
+	 */
+	forward: ForwardFn
+	/** True when this server is the broker (adds the `workspace` arg to every tool). */
+	isBroker?: boolean
 }
 
 async function ensureApproved(ctx: ToolContext): Promise<void> {
@@ -51,7 +39,7 @@ async function ensureApproved(ctx: ToolContext): Promise<void> {
 	const prior = store.getDecision(clientName)
 	if (prior === "allow") return
 	if (prior === "deny") {
-		toolError("client_denied", {
+		throw new ToolError("client_denied", {
 			clientName,
 			message: `The user previously denied MCP access to gllm-code for ${clientName}.`,
 		})
@@ -59,31 +47,39 @@ async function ensureApproved(ctx: ToolContext): Promise<void> {
 	const decision = await ctx.askUserForApproval(clientName)
 	await store.record(clientName, decision)
 	if (decision === "deny") {
-		toolError("client_denied", { clientName, message: "User denied the MCP connection." })
+		throw new ToolError("client_denied", { clientName, message: "User denied the MCP connection." })
 	}
 }
 
-async function getControllerOrOpen(): Promise<Controller> {
-	const controller = await resolveActiveControllerOrOpen(5_000)
-	if (!controller) {
-		toolError("no_active_webview", {
-			message: "gllm-code sidebar is not available. Open the sidebar and retry.",
-		})
-	}
-	return controller
-}
-
-function lastMessageAsk(controller: Controller): string | undefined {
-	const task = controller.task
-	if (!task) return undefined
-	const msgs = task.messageStateHandler?.getClineMessages?.() ?? []
-	return msgs[msgs.length - 1]?.ask
+/**
+ * Convert a ToolError thrown by the dispatcher/forwarder into an MCP error
+ * that the SDK will serialise as JSON-RPC error. Other throws propagate.
+ */
+async function run<T extends Record<string, unknown>>(
+	ctx: ToolContext,
+	name: string,
+	args: T,
+	opts: { approvalRequired: boolean },
+) {
+	if (opts.approvalRequired) await ensureApproved(ctx)
+	const workspace = ctx.isBroker ? (typeof args.workspace === "string" ? args.workspace : undefined) : undefined
+	const forwardArgs = { ...args }
+	delete (forwardArgs as Record<string, unknown>).workspace
+	return ctx.forward({ name, args: forwardArgs as Record<string, unknown>, clientName: ctx.getClientName(), workspace })
 }
 
 export function registerGllmTools(server: McpServer, ctx: ToolContext): void {
-	// ────────────────────────────────────────────────────────────────────────
-	// ping — connectivity check, no approval required, no state change.
-	// ────────────────────────────────────────────────────────────────────────
+	// The `workspace` arg only influences routing on the broker. Per-window
+	// servers accept and ignore it so the wire schemas match across hosts.
+	const workspaceArg = {
+		workspace: z
+			.string()
+			.optional()
+			.describe(
+				"Absolute path of the workspace root to target. Only meaningful on the broker — omit to target the most recently focused window.",
+			),
+	}
+
 	server.registerTool(
 		"gllm_ping",
 		{
@@ -91,22 +87,12 @@ export function registerGllmTools(server: McpServer, ctx: ToolContext): void {
 				"Connectivity probe for the gllm-code MCP host. Returns basic host info and echoes the client name/message. Safe to call without approval.",
 			inputSchema: {
 				message: z.string().optional().describe("Echoed back in the reply."),
+				...workspaceArg,
 			},
 		},
-		async (args) => {
-			const hasController = !!tryGetActiveController()
-			return reply({
-				ok: true,
-				echo: args.message ?? null,
-				clientName: ctx.getClientName(),
-				hasActiveController: hasController,
-			})
-		},
+		async (args) => run(ctx, "gllm_ping", args, { approvalRequired: false }),
 	)
 
-	// ────────────────────────────────────────────────────────────────────────
-	// start_task — new conversation
-	// ────────────────────────────────────────────────────────────────────────
 	server.registerTool(
 		"gllm_start_task",
 		{
@@ -116,32 +102,12 @@ export function registerGllmTools(server: McpServer, ctx: ToolContext): void {
 				prompt: z.string().describe("Initial user message for the new task."),
 				images: z.array(z.string()).optional().describe("Optional array of image data URLs (data:image/...;base64,...)."),
 				files: z.array(z.string()).optional().describe("Optional array of absolute file paths to attach."),
+				...workspaceArg,
 			},
 		},
-		async (args) => {
-			await ensureApproved(ctx)
-			const controller = await getControllerOrOpen()
-			// Tell the next initTask which origin to stamp onto the HistoryItem.
-			pendingOriginForNextInitTask.set({ origin: "mcp", clientName: ctx.getClientName() })
-			try {
-				await controller.initTask(args.prompt, args.images, args.files)
-			} finally {
-				pendingOriginForNextInitTask.clear()
-			}
-			const task = controller.task
-			return reply({
-				ok: true,
-				taskId: task?.taskId ?? null,
-				ulid: task?.ulid ?? null,
-				origin: "mcp",
-				clientName: ctx.getClientName(),
-			})
-		},
+		async (args) => run(ctx, "gllm_start_task", args, { approvalRequired: true }),
 	)
 
-	// ────────────────────────────────────────────────────────────────────────
-	// send_message — follow-up to the active task (including after completion)
-	// ────────────────────────────────────────────────────────────────────────
 	server.registerTool(
 		"gllm_send_message",
 		{
@@ -150,58 +116,23 @@ export function registerGllmTools(server: McpServer, ctx: ToolContext): void {
 			inputSchema: {
 				text: z.string().describe("The message to send."),
 				images: z.array(z.string()).optional(),
+				...workspaceArg,
 			},
 		},
-		async (args) => {
-			await ensureApproved(ctx)
-			const controller = tryGetActiveController()
-			if (!controller) toolError("no_active_webview")
-			const task = controller.task
-			if (!task) toolError("no_active_task", { message: "No task is currently active. Call gllm_start_task first." })
-			if (task.taskState.isStreaming) {
-				toolError("task_busy", {
-					message: "The task is currently streaming a response. Wait for it to finish or call gllm_cancel_task.",
-				})
-			}
-			const ask = lastMessageAsk(controller)
-			await task.handleWebviewAskResponse("messageResponse", args.text, args.images ?? [], [])
-			return reply({ ok: true, taskId: task.taskId, matchedAsk: ask ?? null })
-		},
+		async (args) => run(ctx, "gllm_send_message", args, { approvalRequired: true }),
 	)
 
-	// ────────────────────────────────────────────────────────────────────────
-	// get_status — read-only; no approval required
-	// ────────────────────────────────────────────────────────────────────────
 	server.registerTool(
 		"gllm_get_status",
 		{
 			description: "Snapshot of the active task: id, streaming state, last pending ask, token/cost counters.",
-			inputSchema: {},
+			inputSchema: {
+				...workspaceArg,
+			},
 		},
-		async () => {
-			const controller = tryGetActiveController()
-			if (!controller) return reply({ hasTask: false, reason: "no_active_webview" })
-			const task = controller.task
-			if (!task) return reply({ hasTask: false })
-			const msgs = task.messageStateHandler?.getClineMessages?.() ?? []
-			const last = msgs[msgs.length - 1]
-			return reply({
-				hasTask: true,
-				taskId: task.taskId,
-				ulid: task.ulid,
-				isStreaming: task.taskState.isStreaming,
-				abort: task.taskState.abort,
-				lastAsk: last?.ask ?? null,
-				lastSay: last?.say ?? null,
-				lastText: last?.text ?? null,
-				lastTs: last?.ts ?? null,
-			})
-		},
+		async (args) => run(ctx, "gllm_get_status", args, { approvalRequired: false }),
 	)
 
-	// ────────────────────────────────────────────────────────────────────────
-	// wait_for_completion — polling wait; no approval required
-	// ────────────────────────────────────────────────────────────────────────
 	server.registerTool(
 		"gllm_wait_for_completion",
 		{
@@ -214,35 +145,12 @@ export function registerGllmTools(server: McpServer, ctx: ToolContext): void {
 					.max(300_000)
 					.optional()
 					.describe("Maximum wait in milliseconds (default 60000, hard cap 300000)."),
+				...workspaceArg,
 			},
 		},
-		async (args) => {
-			const controller = tryGetActiveController()
-			if (!controller) toolError("no_active_webview")
-			try {
-				await pWaitFor(
-					() => {
-						const t = controller.task
-						return !t || !t.taskState.isStreaming
-					},
-					{ interval: 500, timeout: args.timeoutMs ?? 60_000 },
-				)
-			} catch (err) {
-				return reply({ ok: false, timedOut: true, message: String(err) })
-			}
-			const task = controller.task
-			return reply({
-				ok: true,
-				taskId: task?.taskId ?? null,
-				hasTask: !!task,
-				isStreaming: task?.taskState.isStreaming ?? false,
-			})
-		},
+		async (args) => run(ctx, "gllm_wait_for_completion", args, { approvalRequired: false }),
 	)
 
-	// ────────────────────────────────────────────────────────────────────────
-	// list_tasks — reads persisted history (all origins)
-	// ────────────────────────────────────────────────────────────────────────
 	server.registerTool(
 		"gllm_list_tasks",
 		{
@@ -250,57 +158,20 @@ export function registerGllmTools(server: McpServer, ctx: ToolContext): void {
 			inputSchema: {
 				limit: z.number().int().min(1).max(500).optional().describe("Maximum number of tasks to return (default 50)."),
 				favoritesOnly: z.boolean().optional(),
+				...workspaceArg,
 			},
 		},
-		async (args) => {
-			await ensureApproved(ctx)
-			const controller = tryGetActiveController()
-			if (!controller) toolError("no_active_webview")
-			const taskHistory = controller.stateManager.getGlobalStateKey("taskHistory") ?? []
-			let items = [...taskHistory]
-			if (args.favoritesOnly) items = items.filter((i) => i.isFavorited)
-			items.sort((a, b) => b.ts - a.ts)
-			const limit = args.limit ?? 50
-			items = items.slice(0, limit)
-			return reply({
-				ok: true,
-				count: items.length,
-				tasks: items.map((i) => ({
-					id: i.id,
-					ts: i.ts,
-					task: i.task,
-					totalCost: i.totalCost ?? 0,
-					tokensIn: i.tokensIn ?? 0,
-					tokensOut: i.tokensOut ?? 0,
-					modelId: i.modelId ?? null,
-					origin: i.origin ?? "webview",
-					originClientName: i.originClientName ?? null,
-					isFavorited: !!i.isFavorited,
-				})),
-			})
-		},
+		async (args) => run(ctx, "gllm_list_tasks", args, { approvalRequired: true }),
 	)
 
-	// ────────────────────────────────────────────────────────────────────────
-	// cancel_task
-	// ────────────────────────────────────────────────────────────────────────
 	server.registerTool(
 		"gllm_cancel_task",
 		{
 			description: "Cancel the currently active task, if any.",
-			inputSchema: {},
+			inputSchema: {
+				...workspaceArg,
+			},
 		},
-		async () => {
-			await ensureApproved(ctx)
-			const controller = tryGetActiveController()
-			if (!controller) toolError("no_active_webview")
-			if (!controller.task) return reply({ ok: true, hadTask: false })
-			try {
-				await controller.cancelTask()
-			} catch (err) {
-				Logger.warn(`[McpHost] cancelTask failed: ${String(err)}`)
-			}
-			return reply({ ok: true, hadTask: true })
-		},
+		async (args) => run(ctx, "gllm_cancel_task", args, { approvalRequired: true }),
 	)
 }

@@ -33,7 +33,7 @@ import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { featureFlagsService } from "@/services/feature-flags"
 import { getDistinctId } from "@/services/logging/distinctId"
-import { getRunningMcpHost } from "@/services/mcp-host"
+import { getRunningBroker, getRunningMcpHost, peekBrokerInfo } from "@/services/mcp-host"
 import { pendingOriginForNextInitTask } from "@/services/mcp-host/originHook"
 import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
@@ -879,6 +879,7 @@ export class Controller {
 		const mcpServerEnabled = this.stateManager.getGlobalSettingsKey("mcpServerEnabled")
 		const mcpServerRequireApproval = this.stateManager.getGlobalSettingsKey("mcpServerRequireApproval")
 		const mcpServerRuntime = getRunningMcpHost()
+		const brokerInfo = peekBrokerInfo()
 		const mcpServerStatus = mcpServerRuntime
 			? {
 					running: true,
@@ -886,8 +887,10 @@ export class Controller {
 					token: mcpServerRuntime.entry.token,
 					workspaceRoot: mcpServerRuntime.entry.workspaceRoot,
 					windowId: mcpServerRuntime.entry.windowId,
+					isBroker: !!getRunningBroker(),
+					broker: brokerInfo,
 				}
-			: { running: false }
+			: { running: false, broker: brokerInfo }
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")

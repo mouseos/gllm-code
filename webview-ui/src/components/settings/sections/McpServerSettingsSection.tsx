@@ -58,12 +58,15 @@ export default function McpServerSettingsSection({
 	}, [])
 
 	const running = !!mcpServerStatus?.running
-	const connectUrl = running && mcpServerStatus?.port ? `http://127.0.0.1:${mcpServerStatus.port}/mcp` : ""
-	const token = running ? (mcpServerStatus?.token ?? "") : ""
+	const broker = mcpServerStatus?.broker
+	const brokerRunning = !!broker
+	const connectUrl = broker ? `http://127.0.0.1:${broker.port}/mcp` : ""
+	const token = broker?.token ?? ""
 	const maskedToken = token ? `${token.slice(0, 6)}…${token.slice(-4)}` : ""
+	const isBroker = !!mcpServerStatus?.isBroker
 
 	const connectCommand = useMemo(() => {
-		if (!running || !connectUrl) return ""
+		if (!brokerRunning || !connectUrl) return ""
 		// Claude Code ≥ 2.x: `claude mcp add [options] <name> <url> [args...]`
 		// and `--header` is variadic — placing it BEFORE the positional name
 		// makes the parser swallow the name as another header value and fail
@@ -71,7 +74,7 @@ export default function McpServerSettingsSection({
 		return [`claude mcp add --transport http gllm-code ${connectUrl} \\`, `  --header "Authorization: Bearer ${token}"`].join(
 			"\n",
 		)
-	}, [running, connectUrl, token])
+	}, [brokerRunning, connectUrl, token])
 
 	return (
 		<div>
@@ -80,8 +83,9 @@ export default function McpServerSettingsSection({
 				<div className="space-y-3">
 					<p className="text-sm text-description leading-relaxed">
 						Expose this GLLM Code instance as a local MCP server so any MCP client (Claude Code, Claude Desktop,
-						Codex, custom scripts, …) can start and continue tasks. Bound to <code>127.0.0.1</code> with a Bearer
-						token.
+						Codex, custom scripts, …) can start and continue tasks. The first window to start runs the broker on a
+						stable URL+token; every other window becomes a forwarding backend. Register the broker URL once with{" "}
+						<code>claude mcp add</code> — it survives reloads and switching workspaces.
 					</p>
 
 					<div className="border border-input-border rounded-md p-3 space-y-1">
@@ -102,16 +106,23 @@ export default function McpServerSettingsSection({
 					<div className="border border-input-border rounded-md p-3">
 						<div className="flex items-center justify-between mb-2">
 							<span className="text-xs uppercase tracking-wider text-description font-semibold">Status</span>
-							<span
-								className={
-									running
-										? "text-[11px] px-2 py-0.5 rounded-full bg-[var(--color-claude-clay)]/20 text-[var(--color-claude-orange)] font-semibold"
-										: "text-[11px] px-2 py-0.5 rounded-full bg-description/20 text-description"
-								}>
-								{running ? "Running" : "Stopped"}
+							<span className="flex items-center gap-1.5">
+								{running && (
+									<span className="text-[10px] px-1.5 py-0.5 rounded-full border border-input-border/60 text-description">
+										{isBroker ? "this window = broker" : "follower"}
+									</span>
+								)}
+								<span
+									className={
+										brokerRunning
+											? "text-[11px] px-2 py-0.5 rounded-full bg-[var(--color-claude-clay)]/20 text-[var(--color-claude-orange)] font-semibold"
+											: "text-[11px] px-2 py-0.5 rounded-full bg-description/20 text-description"
+									}>
+									{brokerRunning ? "Broker online" : running ? "Follower only" : "Stopped"}
+								</span>
 							</span>
 						</div>
-						{running ? (
+						{brokerRunning ? (
 							<div className="space-y-2 text-xs">
 								<div className="flex items-center justify-between gap-2">
 									<span className="text-description">Endpoint</span>
@@ -140,6 +151,16 @@ export default function McpServerSettingsSection({
 										<CopyButton label="Copy command" value={connectCommand} />
 									</div>
 								</div>
+								<div className="pt-1 text-description text-[10px] leading-relaxed">
+									To target a specific workspace from the MCP client, pass{" "}
+									<code>workspace: "/abs/path/to/project"</code> as a tool argument. Omit it and the broker
+									routes to the most recently focused GLLM window.
+								</div>
+							</div>
+						) : running ? (
+							<div className="text-xs text-description">
+								This window is acting as a forwarding backend — another GLLM window holds the broker. Close the
+								broker window or wait a few seconds for automatic leader take-over.
 							</div>
 						) : (
 							<div className="text-xs text-description">
@@ -150,9 +171,9 @@ export default function McpServerSettingsSection({
 
 					<div className="text-[11px] text-description leading-relaxed">
 						<RefreshCw aria-hidden className="size-3 inline mr-1" />
-						The port is assigned at start-up and persists for the lifetime of this window. Approval decisions are
-						saved per client name in global state and are currently permanent — to reset them, clear them manually
-						from the extension state.
+						The broker URL+token are persisted in <code>~/.gllm-code/mcp/broker-creds.json</code> and reused across
+						restarts, so you only need to <code>claude mcp add</code> once. Approval decisions are saved per client
+						name in global state — to revoke, clear the relevant entry manually.
 					</div>
 				</div>
 			</Section>

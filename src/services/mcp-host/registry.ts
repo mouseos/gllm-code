@@ -30,6 +30,12 @@ export interface RegistryEntry {
 	startedAt: string
 	/** Extension-version string (useful for debugging older installs). */
 	version?: string
+	/**
+	 * ISO timestamp of the last time this window had keyboard/mouse focus.
+	 * The broker uses `max(lastFocusedAt)` as the default target for
+	 * tool calls that don't specify a `workspace` argument.
+	 */
+	lastFocusedAt?: string
 }
 
 const REGISTRY_DIR = path.join(os.homedir(), ".gllm-code", "mcp")
@@ -60,7 +66,8 @@ async function readAll(): Promise<RegistryEntry[]> {
 				typeof o.port === "number" &&
 				typeof o.token === "string" &&
 				typeof o.pid === "number" &&
-				typeof o.startedAt === "string"
+				typeof o.startedAt === "string" &&
+				(o.lastFocusedAt === undefined || typeof o.lastFocusedAt === "string")
 			)
 		})
 	} catch (err) {
@@ -102,6 +109,25 @@ export async function unregister(windowId: string): Promise<void> {
 export async function list(): Promise<RegistryEntry[]> {
 	const all = await readAll()
 	return all.filter((e) => isProcessAlive(e.pid))
+}
+
+/**
+ * Update `lastFocusedAt` for this window without rewriting the entry shape.
+ * Called from a `vscode.window.onDidChangeWindowState` listener.
+ */
+export async function touchFocus(windowId: string): Promise<void> {
+	const all = await readAll()
+	let changed = false
+	for (const entry of all) {
+		if (entry.windowId === windowId) {
+			entry.lastFocusedAt = new Date().toISOString()
+			changed = true
+			break
+		}
+	}
+	if (!changed) return
+	const alive = all.filter((e) => isProcessAlive(e.pid))
+	await writeAll(alive)
 }
 
 export { REGISTRY_FILE }

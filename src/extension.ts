@@ -13,7 +13,7 @@ import { sendSettingsButtonClickedEvent } from "./core/controller/ui/subscribeTo
 import { sendWorktreesButtonClickedEvent } from "./core/controller/ui/subscribeToWorktreesButtonClicked"
 import { WebviewProvider } from "./core/webview"
 import { createClineAPI } from "./exports"
-import { bootstrapMcpHost, stopMcpHost } from "./services/mcp-host"
+import { bootstrapMcpHost, notifyWindowFocused, stopMcpHost } from "./services/mcp-host"
 import { initializeTestMode } from "./services/test/TestMode"
 import "./utils/path" // necessary to have access to String.prototype.toPosix
 import path from "node:path"
@@ -506,6 +506,15 @@ ${ctx.cellJson || "{}"}
 	// from the webview call reconcileMcpHostFromSettings() directly.
 	void bootstrapMcpHost(context)
 	context.subscriptions.push({ dispose: () => void stopMcpHost() })
+
+	// Track window focus so the MCP broker can route default tool calls to
+	// the window the user last interacted with.
+	context.subscriptions.push(
+		vscode.window.onDidChangeWindowState((state) => {
+			if (state.focused) void notifyWindowFocused()
+		}),
+	)
+	if (vscode.window.state.focused) void notifyWindowFocused()
 
 	Logger.log(`[Cline] extension activated in ${performance.now() - activationStartTime} ms`)
 

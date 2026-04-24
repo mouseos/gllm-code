@@ -113,6 +113,18 @@ export interface ExtensionState {
 		token?: string
 		workspaceRoot?: string
 		windowId?: string
+		/**
+		 * Whether this VS Code window is the broker leader (holds the stable
+		 * public URL). When false, another window in the same install is
+		 * serving external MCP clients and this window is a forwarding backend.
+		 */
+		isBroker?: boolean
+		/** Broker URL+token advertised to external MCP clients (stable). */
+		broker?: {
+			port: number
+			token: string
+			leaderWindowId: string
+		}
 	}
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
