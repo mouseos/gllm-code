@@ -1,13 +1,13 @@
-import { memo } from "react"
-import { cn } from "@/lib/utils"
-import { MarkdownRow } from "./MarkdownRow"
 import { Int64Request } from "@shared/proto/cline/common"
 import { CheckIcon } from "lucide-react"
+import { memo } from "react"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
+import { cn } from "@/lib/utils"
 import { TaskServiceClient } from "@/services/grpc-client"
 import { CopyButton } from "../common/CopyButton"
 import SuccessButton from "../common/SuccessButton"
 import { QuoteButtonState } from "./ChatRow"
+import { MarkdownRow } from "./MarkdownRow"
 import QuoteButton from "./QuoteButton"
 
 interface CompletionOutputRowProps {
@@ -37,25 +37,22 @@ export const CompletionOutputRow = memo(
 		handleQuoteClick,
 	}: CompletionOutputRowProps) => {
 		return (
-			<div>
-				<div className="rounded-sm border border-success/20 overflow-visible bg-success/10 p-2 pt-3">
-					{/* Title */}
-					<div className={cn(headClassNames, "justify-between px-1")}>
-						<div className="flex gap-2 items-center">
-							<CheckIcon className="size-3 text-success" />
-							<span className="text-success font-bold">Task Completed</span>
-						</div>
-						<CopyButton className="text-success" textToCopy={text} />
-					</div>
-					{/* Content */}
-					<div className="w-full relative border-t-1 border-description/20 rounded-b-sm">
-						<div className="completion-output-content p-2 pt-3 w-full [&_hr]:opacity-20 [&_p:last-child]:mb-0 rounded-sm">
-							<MarkdownRow markdown={text} />
-							{quoteButtonState.visible && (
-								<QuoteButton left={quoteButtonState.left} onClick={handleQuoteClick} top={quoteButtonState.top} />
-							)}
-						</div>
-					</div>
+			<div className="group/completion relative">
+				{/* Subtle "Done" inline indicator (Claude-flat, no heavy green banner) */}
+				<div className={cn(headClassNames, "items-center gap-1.5 text-description text-xs mb-1")}>
+					<CheckIcon className="size-3 text-[var(--color-claude-orange)]" />
+					<span className="opacity-80">Done</span>
+					<CopyButton
+						className="ml-auto opacity-0 group-hover/completion:opacity-70 transition-opacity"
+						textToCopy={text}
+					/>
+				</div>
+				{/* Content — flat Markdown, no wrapper box */}
+				<div className="w-full relative [&_hr]:opacity-20 [&_p:last-child]:mb-0">
+					<MarkdownRow markdown={text} />
+					{quoteButtonState.visible && (
+						<QuoteButton left={quoteButtonState.left} onClick={handleQuoteClick} top={quoteButtonState.top} />
+					)}
 				</div>
 				{/* Action Buttons */}
 				{showActionRow && (

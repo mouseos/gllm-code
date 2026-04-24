@@ -606,6 +606,77 @@ const ModelPickerMenu: React.FC<{
 	</div>
 )
 
+// Extract quota percent + reset info for progress bar rendering
+function getAccountQuotaBar(account: ProtoGllmAccount): {
+	percent: number | null
+	resetText: string
+	statusText: string
+} {
+	if (account.quotaStatus === "ok") {
+		const bucket = pickWorstQuotaBucket(getQuotaBucketsForModel(account, account.model))
+		if (bucket?.remainingFraction !== undefined) {
+			const percent = quotaFractionToPercent(bucket.remainingFraction)
+			const resetAt = bucket.resetTime ? new Date(bucket.resetTime) : null
+			const resetText =
+				resetAt && !Number.isNaN(resetAt.getTime())
+					? `Resets ${resetAt.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}`
+					: ""
+			return { percent, resetText, statusText: "" }
+		}
+		return { percent: null, resetText: "", statusText: "No bucket for selected model" }
+	}
+	if (account.quotaStatus === "empty") return { percent: 0, resetText: "", statusText: "Quota empty" }
+	if (account.quotaStatus === "unsupported") return { percent: null, resetText: "", statusText: "Unsupported" }
+	if (account.quotaStatus === "auth_error") return { percent: null, resetText: "", statusText: "Auth error" }
+	if (account.quotaStatus === "fetch_error") return { percent: null, resetText: "", statusText: "Fetch failed" }
+	return { percent: null, resetText: "", statusText: "Loading" }
+}
+
+const UsageProgressBar: React.FC<{ percent: number | null }> = ({ percent }) => {
+	// Claude spec: track h=6px rounded 3px bg=input-border, fill progressbar-bg normal / claude-orange when usage is high.
+	// Here `percent` is "remaining" fraction, so low remaining = high usage -> orange.
+	const clamped = percent === null ? 0 : Math.max(0, Math.min(100, percent))
+	const isHighUsage = clamped <= 15
+	return (
+		<div
+			style={{
+				height: 6,
+				borderRadius: 3,
+				backgroundColor: "var(--vscode-input-border, var(--vscode-editorWidget-border))",
+				overflow: "hidden",
+				marginTop: 4,
+				marginBottom: 2,
+			}}>
+			<div
+				style={{
+					height: "100%",
+					width: `${clamped}%`,
+					backgroundColor: isHighUsage
+						? "var(--color-claude-orange)"
+						: "var(--vscode-progressBar-background, var(--vscode-editorWidget-border))",
+					borderRadius: 3,
+					transition: "width 200ms ease",
+				}}
+			/>
+		</div>
+	)
+}
+
+const UsageCardSectionHeader: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+	<div
+		style={{
+			fontSize: 11,
+			color: SECTION_FG,
+			textTransform: "uppercase",
+			letterSpacing: "0.06em",
+			userSelect: "none",
+			marginTop: 14,
+			marginBottom: 8,
+		}}>
+		{children}
+	</div>
+)
+
 const UsageSummaryMenu: React.FC<{
 	accounts: ProtoGllmAccount[]
 	accountUsage: ReturnType<typeof getApiMetricsByGllmAccount>
@@ -613,60 +684,148 @@ const UsageSummaryMenu: React.FC<{
 	outputTokens: number
 	totalCost: number
 	onClose: () => void
-}> = ({ accounts, accountUsage, inputTokens, outputTokens, totalCost, onClose }) => (
-	<div style={{ ...menuContainerStyle, left: 0, minWidth: 320, maxWidth: 380 }}>
-		<SectionHeader>Session Usage</SectionHeader>
-		<div style={{ padding: "8px 12px", fontSize: 12, display: "grid", gap: 6 }}>
-			<div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-				<span>Input</span>
-				<span>{inputTokens.toLocaleString()}</span>
-			</div>
-			<div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-				<span>Output</span>
-				<span>{outputTokens.toLocaleString()}</span>
-			</div>
-			<div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-				<span>Cost</span>
-				<span>${totalCost.toFixed(4)}</span>
-			</div>
-		</div>
-		<MenuSeparator />
-		<SectionHeader>Accounts</SectionHeader>
-		<div style={{ padding: "4px 12px 8px", display: "grid", gap: 6 }}>
-			{accounts.length === 0 ? (
-				<div style={{ fontSize: 12, color: SECTION_FG }}>No GLLM accounts configured</div>
-			) : (
-				accounts.map((account) => {
+}> = ({ accounts, accountUsage, inputTokens, outputTokens, totalCost, onClose }) => {
+	const mainAccount = accounts.find((a) => a.isMain) ?? accounts[0]
+	return (
+		<div
+			onClick={(e) => {
+				if (e.target === e.currentTarget) onClose()
+			}}
+			onKeyDown={(e) => {
+				if (e.key === "Escape") onClose()
+			}}
+			role="presentation"
+			style={{
+				position: "fixed",
+				inset: 0,
+				backgroundColor: "rgba(0, 0, 0, 0.55)",
+				backdropFilter: "blur(1px)",
+				WebkitBackdropFilter: "blur(1px)",
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
+				zIndex: 2000,
+				padding: 16,
+				animation: "usageModalFadeIn 120ms ease",
+			}}>
+			<style>{`@keyframes usageModalFadeIn { from { opacity: 0 } to { opacity: 1 } }`}</style>
+			<div
+				onClick={(e) => e.stopPropagation()}
+				role="dialog"
+				style={{
+					backgroundColor: MENU_BG,
+					color: MENU_FG,
+					border: `1px solid ${MENU_BORDER}`,
+					borderRadius: 8,
+					padding: "16px 18px 14px",
+					minWidth: 300,
+					maxWidth: 420,
+					width: "100%",
+					boxShadow: "0 20px 48px rgba(0, 0, 0, 0.45)",
+					fontSize: 12,
+				}}>
+				{/* Title + close */}
+				<div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
+					<div style={{ fontSize: 14, fontWeight: 600, color: "var(--vscode-foreground)" }}>Account & Usage</div>
+					<button
+						aria-label="Close"
+						onClick={onClose}
+						style={{
+							background: "transparent",
+							border: "none",
+							color: SECTION_FG,
+							cursor: "pointer",
+							padding: 2,
+							borderRadius: 3,
+							display: "inline-flex",
+							alignItems: "center",
+							justifyContent: "center",
+						}}
+						type="button">
+						<span className="codicon codicon-close" style={{ fontSize: 14 }} />
+					</button>
+				</div>
+
+				{/* ACCOUNT */}
+				<UsageCardSectionHeader>Account</UsageCardSectionHeader>
+				{mainAccount ? (
+					<div style={{ display: "grid", gap: 6, fontSize: 12 }}>
+						<div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+							<span style={{ color: SECTION_FG }}>Provider</span>
+							<span style={{ whiteSpace: "nowrap" }}>{getProviderDisplayName(mainAccount.provider)}</span>
+						</div>
+						<div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+							<span style={{ color: SECTION_FG }}>Email</span>
+							<span
+								style={{
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									whiteSpace: "nowrap",
+									maxWidth: 240,
+								}}>
+								{mainAccount.label || mainAccount.id}
+							</span>
+						</div>
+						<div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+							<span style={{ color: SECTION_FG }}>Model</span>
+							<span style={{ whiteSpace: "nowrap" }}>{mainAccount.model || "—"}</span>
+						</div>
+					</div>
+				) : (
+					<div style={{ fontSize: 12, color: SECTION_FG }}>No accounts configured</div>
+				)}
+
+				{/* USAGE */}
+				<UsageCardSectionHeader>Usage</UsageCardSectionHeader>
+
+				{/* Session */}
+				<div style={{ marginBottom: 10 }}>
+					<div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+						<span style={{ fontWeight: 500 }}>Session</span>
+						<span style={{ color: SECTION_FG }}>${totalCost.toFixed(4)}</span>
+					</div>
+					<div style={{ fontSize: 11, color: SECTION_FG, marginTop: 2 }}>
+						{inputTokens.toLocaleString()} in · {outputTokens.toLocaleString()} out
+					</div>
+				</div>
+
+				{/* Per-account quota bars */}
+				{accounts.map((account) => {
+					const bar = getAccountQuotaBar(account)
 					const usage = accountUsage.find((entry) => entry.accountId === account.id)
+					const displayLabel = `${account.isMain ? "★ " : ""}${account.label || account.id}`
 					return (
-						<div key={account.id} style={{ display: "grid", gap: 2, fontSize: 12 }}>
-							<div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-								<span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-									{account.isMain ? "★ " : ""}
-									{account.label || account.id}
+						<div key={account.id} style={{ marginBottom: 10 }}>
+							<div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, gap: 10 }}>
+								<span
+									style={{
+										fontWeight: 500,
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										whiteSpace: "nowrap",
+										flex: 1,
+										minWidth: 0,
+									}}>
+									{displayLabel}
 								</span>
-								<span style={{ color: SECTION_FG, whiteSpace: "nowrap" }}>{usage?.modelId || account.model}</span>
+								<span style={{ color: SECTION_FG, whiteSpace: "nowrap" }}>
+									{bar.percent !== null ? `${formatQuotaPercent(bar.percent)} left` : bar.statusText || "—"}
+								</span>
 							</div>
-							<div style={{ display: "flex", justifyContent: "space-between", gap: 12, color: SECTION_FG }}>
-								<span>
-									{usage
+							{bar.percent !== null && <UsageProgressBar percent={bar.percent} />}
+							<div style={{ fontSize: 11, color: SECTION_FG, marginTop: 2 }}>
+								{bar.resetText ||
+									(usage
 										? `${usage.totalTokensIn.toLocaleString()} in / ${usage.totalTokensOut.toLocaleString()} out`
-										: "No usage yet"}
-								</span>
-								<span>{usage ? `$${usage.totalCost.toFixed(4)}` : "$0.0000"}</span>
+										: "No usage yet")}
 							</div>
-							<div style={{ color: SECTION_FG }}>{getAccountQuotaSummary(account)}</div>
 						</div>
 					)
-				})
-			)}
+				})}
+			</div>
 		</div>
-		<MenuSeparator />
-		<button onClick={onClose} style={{ ...menuItemBaseStyle, padding: "6px 12px 8px" }} type="button">
-			<span>Close</span>
-		</button>
-	</div>
-)
+	)
+}
 
 // ---------------------------------------------------------------------------
 // Mode Menu
@@ -936,7 +1095,7 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 					display: "flex",
 					alignItems: "center",
 					justifyContent: "space-between",
-					padding: "0 8px 4px 30px",
+					padding: "4px 8px 6px 8px",
 					gap: 8,
 					color: "var(--vscode-descriptionForeground)",
 					fontSize: 12,
@@ -958,15 +1117,6 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 						type="button">
 						<Slash size={14} />
 					</button>
-					<span
-						style={{
-							marginLeft: 4,
-							overflow: "hidden",
-							textOverflow: "ellipsis",
-							whiteSpace: "nowrap",
-						}}>
-						/ commands · @ files · ! shell
-					</span>
 
 					{openMenu === "plus" && (
 						<PlusMenu
@@ -1008,34 +1158,6 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 
 				{/* Right: mode button and send button */}
 				<div style={{ display: "flex", alignItems: "center", gap: 6, position: "relative" }}>
-					<button
-						onClick={() => toggleMenu("model-status")}
-						style={{
-							background: "transparent",
-							border: "none",
-							color: "var(--vscode-descriptionForeground)",
-							cursor: "pointer",
-							fontFamily: "inherit",
-							fontSize: 12,
-							maxWidth: 170,
-							overflow: "hidden",
-							padding: "1px 2px",
-							textOverflow: "ellipsis",
-							whiteSpace: "nowrap",
-						}}
-						title="Switch model"
-						type="button">
-						{effectiveModelDisplayName}
-					</button>
-					{openMenu === "model-status" && (
-						<ModelPickerMenu
-							currentModel={currentModel}
-							onClose={closeMenu}
-							onOpenAccounts={() => navigateToSettings("accounts")}
-							onSelectModel={handleSelectModel}
-							sections={modelSections}
-						/>
-					)}
 					<div ref={modeButtonRef} style={{ display: "inline-flex" }}>
 						<button
 							onClick={() => toggleMenu("mode")}
@@ -1080,20 +1202,31 @@ const ChatToolbar: React.FC<ChatToolbarProps> = ({
 						onClick={() => {
 							if (!sendingDisabled) onSend()
 						}}
+						onMouseEnter={(e) => {
+							if (!sendingDisabled) {
+								e.currentTarget.style.backgroundColor = "var(--color-claude-orange)"
+							}
+						}}
+						onMouseLeave={(e) => {
+							if (!sendingDisabled) {
+								e.currentTarget.style.backgroundColor = "var(--color-claude-clay)"
+							}
+						}}
 						style={{
 							display: "flex",
 							alignItems: "center",
 							justifyContent: "center",
 							width: 24,
 							height: 24,
-							borderRadius: 2,
+							borderRadius: 5,
 							border: "none",
-							backgroundColor: sendingDisabled ? "transparent" : "var(--vscode-button-background)",
-							color: sendingDisabled ? "var(--vscode-disabledForeground)" : "var(--vscode-button-foreground)",
+							backgroundColor: sendingDisabled ? "transparent" : "var(--color-claude-clay)",
+							color: sendingDisabled ? "var(--vscode-disabledForeground)" : "var(--color-claude-ivory)",
 							cursor: sendingDisabled ? "not-allowed" : "pointer",
 							opacity: sendingDisabled ? 0.5 : 1,
 							padding: 0,
 							flexShrink: 0,
+							transition: "background-color 120ms ease",
 						}}
 						title="Send"
 						type="button">

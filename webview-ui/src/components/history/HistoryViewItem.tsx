@@ -123,7 +123,8 @@ const HistoryViewItem = ({
 							variant="icon">
 							<StarIcon
 								className={cn("opacity-70", {
-									"text-button-background  fill-button-background opacity-100": isFavoritedItem,
+									"text-[var(--color-claude-clay)] fill-[var(--color-claude-clay)] opacity-100":
+										isFavoritedItem,
 								})}
 							/>
 						</Button>

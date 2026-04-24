@@ -76,7 +76,7 @@ export const Navbar = () => {
 					<TooltipTrigger asChild>
 						<Button
 							aria-label={tab.tooltip}
-							className="p-0 h-7"
+							className="p-0 h-7 hover:text-[var(--color-claude-orange)] transition-colors"
 							data-testid={`tab-${tab.id}`}
 							key={`navbar-button-${tab.id}`}
 							onClick={() => tab.navigate()}

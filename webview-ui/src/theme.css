@@ -1,6 +1,11 @@
 /* Editor theme mapping */
 @theme {
 	--color-cline: #9663f1;
+	/* Claude Code palette (ported for Chat input area accent) */
+	--color-claude-orange: #d97757;
+	--color-claude-clay: #c6613f;
+	--color-claude-ivory: #faf9f5;
+	--color-claude-slate: #141413;
 	--color-background: var(--vscode-sideBar-background);
 	--color-border: var(--vscode-focusBorder);
 	--color-border-panel: var(--vscode-panel-border);

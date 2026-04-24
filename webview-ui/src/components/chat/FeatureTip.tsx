@@ -106,9 +106,9 @@ export const FeatureTip = memo(() => {
 				"flex items-start gap-1.5 mt-2 ml-1 transition-opacity duration-300",
 				!hasFadedIn || isFading ? "opacity-0" : "opacity-100",
 			)}>
-			<LightbulbIcon className="size-3 text-description shrink-0 mt-[1px]" />
+			<LightbulbIcon className="size-3 text-[var(--color-claude-orange)] shrink-0 mt-[1px]" />
 			<span className="text-xs text-description leading-relaxed">
-				<span className="font-medium">Tip:</span> {currentTip.text}
+				<span className="font-medium text-[var(--color-claude-orange)]/90">Tip:</span> {currentTip.text}
 			</span>
 		</div>
 	)

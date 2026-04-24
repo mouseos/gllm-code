@@ -168,9 +168,9 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 	}
 
 	return (
-		<div className={cn("px-4 py-2 ml-1 text-description")}>
+		<div className={cn("px-3 py-2 mx-1 my-1 text-description rounded-md border border-input-border bg-input-background/30")}>
 			{/* Header */}
-			<div className="text-[13px] text-description font-semibold mb-1">{summary}:</div>
+			<div className="text-[13px] text-foreground/80 font-semibold mb-1.5">{summary}:</div>
 
 			{/* Content - unified list of completed + active tools */}
 			<div className="min-w-0">
@@ -194,7 +194,7 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 									disabled
 									size="icon"
 									variant="text">
-									<info.icon className="opacity-70 shrink-0 size-[12px]" />
+									<info.icon className="shrink-0 size-[12px] text-[var(--color-claude-orange)]" />
 									<span className="flex-1 min-w-0 whitespace-nowrap overflow-hidden text-ellipsis text-left text-[13px]">
 										<TypewriterText speed={15} text={activityText} />
 									</span>{" "}

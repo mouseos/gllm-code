@@ -286,6 +286,10 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 										? "var(--vscode-quickInputList-focusForeground)"
 										: "",
 								borderBottom: "1px solid var(--vscode-editorGroup-border)",
+								borderLeft:
+									index === selectedIndex && isOptionSelectable(option)
+										? "2px solid var(--color-claude-orange)"
+										: "2px solid transparent",
 								display: "flex",
 								alignItems: "center",
 								justifyContent: "space-between",

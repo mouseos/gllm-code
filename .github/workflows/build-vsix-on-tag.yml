@@ -1,0 +1,74 @@
+name: Build VSIX on Tag
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (optional, defaults to current ref)"
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Package VSIX
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          # Keep aligned with publish workflow: newer Node can trip vsce packaging.
+          node-version: 22
+
+      - name: Install root dependencies
+        run: npm ci --include=optional
+
+      - name: Install webview-ui dependencies
+        run: cd webview-ui && npm ci --include=optional
+
+      - name: Install vsce
+        run: npm install -g @vscode/vsce
+
+      - name: Resolve version
+        id: version
+        run: |
+          REF_NAME="${GITHUB_REF_NAME:-${{ inputs.tag }}}"
+          # Strip leading "v" if present
+          VERSION="${REF_NAME#v}"
+          echo "ref_name=$REF_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "vsix_name=gllm-code-${VERSION}.vsix" >> "$GITHUB_OUTPUT"
+
+      - name: Package VSIX
+        run: |
+          npx vsce package \
+            --allow-package-secrets sendgrid \
+            --no-dependencies \
+            --out "${{ steps.version.outputs.vsix_name }}"
+
+      - name: Upload VSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.version.outputs.vsix_name }}
+          path: ${{ steps.version.outputs.vsix_name }}
+          if-no-files-found: error
+
+      - name: Attach VSIX to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.version.outputs.vsix_name }}
+          tag_name: ${{ steps.version.outputs.ref_name }}
+          draft: false
+          prerelease: false
+          fail_on_unmatched_files: true

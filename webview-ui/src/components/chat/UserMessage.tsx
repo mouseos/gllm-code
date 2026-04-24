@@ -89,7 +89,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 
 	return (
 		<div
-			className="my-0.5 py-1 pr-1 text-foreground"
+			className="my-1 inline-block px-1.5 py-1 text-foreground rounded-md bg-input-background border border-input-border max-w-full"
 			onClick={handleClick}
 			onKeyDown={(e) => {
 				if (e.key === "Enter" || e.key === " ") {
@@ -98,7 +98,6 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 			}}
 			role="button"
 			style={{
-				backgroundColor: "transparent",
 				whiteSpace: "pre-line",
 				wordWrap: "break-word",
 			}}

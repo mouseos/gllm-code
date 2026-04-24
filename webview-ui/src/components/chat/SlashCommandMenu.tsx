@@ -1,8 +1,8 @@
 import type { McpServer } from "@shared/mcp"
-import type { SlashCommand } from "@/utils/slash-commands"
 import React, { useCallback, useEffect, useRef } from "react"
 import ScreenReaderAnnounce from "@/components/common/ScreenReaderAnnounce"
 import { useMenuAnnouncement } from "@/hooks/useMenuAnnouncement"
+import type { SlashCommand } from "@/utils/slash-commands"
 import { getMatchingSlashCommands } from "@/utils/slash-commands"
 
 interface SlashCommandMenuProps {
@@ -98,10 +98,10 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 					return (
 						<div
 							aria-selected={itemIndex === selectedIndex}
-							className={`slash-command-menu-item py-2 px-3 cursor-pointer flex flex-col border-b border-(--vscode-editorGroup-border) ${
+							className={`slash-command-menu-item py-2 px-3 cursor-pointer flex flex-col border-b border-(--vscode-editorGroup-border) border-l-2 ${
 								itemIndex === selectedIndex
-									? "bg-(--vscode-quickInputList-focusBackground) text-(--vscode-quickInputList-focusForeground)"
-									: ""
+									? "bg-(--vscode-quickInputList-focusBackground) text-(--vscode-quickInputList-focusForeground) border-l-[var(--color-claude-orange)]"
+									: "border-l-transparent"
 							} hover:bg-(--vscode-list-hoverBackground)`}
 							id={`slash-command-menu-item-${itemIndex}`}
 							key={command.name}
@@ -140,12 +140,7 @@ const SlashCommandMenu: React.FC<SlashCommandMenuProps> = ({
 					<>
 						{renderCommandSection(defaultCommands, "Default Commands", 0, true)}
 						{renderCommandSection(workflowCommands, "Workflow Commands", defaultCommands.length, false)}
-						{renderCommandSection(
-							mcpCommands,
-							"MCP Prompts",
-							defaultCommands.length + workflowCommands.length,
-							true,
-						)}
+						{renderCommandSection(mcpCommands, "MCP Prompts", defaultCommands.length + workflowCommands.length, true)}
 					</>
 				) : (
 					<div aria-selected="false" className="py-2 px-3 cursor-default flex flex-col" role="option">

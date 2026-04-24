@@ -5,20 +5,22 @@ import { TaskServiceClient } from "@/services/grpc-client"
 
 const OptionButton = styled.button<{ isSelected?: boolean; isNotSelectable?: boolean }>`
 	padding: 8px 12px;
-	background: ${(props) => (props.isSelected ? "var(--vscode-focusBorder)" : CODE_BLOCK_BG_COLOR)};
-	color: ${(props) => (props.isSelected ? "white" : "var(--vscode-input-foreground)")};
-	border: 1px solid var(--vscode-editorGroup-border);
-	border-radius: 2px;
+	background: ${(props) => (props.isSelected ? "var(--color-claude-clay)" : CODE_BLOCK_BG_COLOR)};
+	color: ${(props) => (props.isSelected ? "var(--color-claude-ivory)" : "var(--vscode-input-foreground)")};
+	border: 1px solid ${(props) => (props.isSelected ? "var(--color-claude-clay)" : "var(--vscode-editorGroup-border)")};
+	border-radius: 4px;
 	cursor: ${(props) => (props.isNotSelectable ? "default" : "pointer")};
 	text-align: left;
 	font-size: 12px;
+	transition: background-color 120ms ease, border-color 120ms ease;
 
 	${(props) =>
 		!props.isNotSelectable &&
 		`
 		&:hover {
-			background: var(--vscode-focusBorder);
-			color: white;
+			background: var(--color-claude-clay);
+			color: var(--color-claude-ivory);
+			border-color: var(--color-claude-orange);
 		}
 	`}
 `

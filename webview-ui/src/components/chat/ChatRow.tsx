@@ -93,7 +93,7 @@ export interface QuoteButtonState {
 
 interface ChatRowContentProps extends Omit<ChatRowProps, "onHeightChange"> {}
 
-export const ProgressIndicator = () => <LoaderCircleIcon className="size-2 mr-2 animate-spin" />
+export const ProgressIndicator = () => <LoaderCircleIcon className="size-2 mr-2 animate-spin text-[var(--color-claude-orange)]" />
 const InvisibleSpacer = () => <div aria-hidden className="h-px" />
 
 function getChatRowMarker(message: ClineMessage): string {
@@ -1088,7 +1088,7 @@ export const ChatRowContent = memo(
 											{isFailed && !isRequestInProgress ? (
 												<TriangleAlertIcon className="mr-2 size-2" />
 											) : (
-												<RefreshCwIcon className="mr-2 size-2 animate-spin" />
+												<RefreshCwIcon className="mr-2 size-2 animate-spin text-[var(--color-claude-orange)]" />
 											)}
 											<span className="font-medium text-foreground">
 												{isFailed ? "Auto-Retry Failed" : "Auto-Retry in Progress"}

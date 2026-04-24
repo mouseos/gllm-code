@@ -1262,197 +1262,199 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			.replace(/.$/, (match) => match.toUpperCase())
 
 		return (
-			<div>
-				<div
-					className="relative flex transition-colors ease-in-out duration-100 border-t border-editor-group-border bg-editor-background px-3 py-2"
-					onDragEnter={handleDragEnter}
-					onDragLeave={handleDragLeave}
-					onDragOver={onDragOver}
-					onDrop={onDrop}>
-					<div className="absolute left-4 top-[17px] z-2 select-none font-mono text-[13px] leading-5 text-description">
-						&gt;
-					</div>
-					{showDimensionError && (
-						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
-							<span className="text-error font-bold text-xs text-center">Image dimensions exceed 7500px</span>
-						</div>
-					)}
-					{showUnsupportedFileError && (
-						<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
-							<span className="text-error font-bold text-xs">Files other than images are currently disabled</span>
-						</div>
-					)}
-					{showSlashCommandsMenu && (
-						<div ref={slashCommandsMenuContainerRef}>
-							<SlashCommandMenu
-								globalWorkflowToggles={globalWorkflowToggles}
-								localWorkflowToggles={localWorkflowToggles}
-								mcpServers={mcpServers}
-								onMouseDown={handleMenuMouseDown}
-								onSelect={handleSlashCommandsSelect}
-								query={slashCommandsQuery}
-								remoteWorkflows={remoteConfigSettings?.remoteGlobalWorkflows}
-								remoteWorkflowToggles={remoteWorkflowToggles}
-								selectedIndex={selectedSlashCommandsIndex}
-								setSelectedIndex={setSelectedSlashCommandsIndex}
-							/>
-						</div>
-					)}
-
-					{showContextMenu && (
-						<div ref={contextMenuContainerRef}>
-							<ContextMenu
-								dynamicSearchResults={fileSearchResults}
-								isLoading={searchLoading}
-								onMouseDown={handleMenuMouseDown}
-								onSelect={handleMentionSelect}
-								queryItems={queryItems}
-								searchQuery={searchQuery}
-								selectedIndex={selectedMenuIndex}
-								selectedType={selectedType}
-								setSelectedIndex={setSelectedMenuIndex}
-							/>
-						</div>
-					)}
+			<div className="px-2 pt-1 pb-2">
+				<div className="rounded-md border border-input-border bg-input-background shadow-[0_1px_2px_rgba(0,0,0,0.10)]">
 					<div
-						className={cn(
-							"absolute bottom-2 top-2 whitespace-pre-wrap break-words overflow-hidden bg-transparent",
-							isTextAreaFocused ? "left-8 right-3" : "left-8 right-3",
+						className="relative flex transition-colors ease-in-out duration-100 bg-transparent px-3 py-2"
+						onDragEnter={handleDragEnter}
+						onDragLeave={handleDragLeave}
+						onDragOver={onDragOver}
+						onDrop={onDrop}>
+						{showDimensionError && (
+							<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
+								<span className="text-error font-bold text-xs text-center">Image dimensions exceed 7500px</span>
+							</div>
 						)}
-						ref={highlightLayerRef}
-						style={{
-							position: "absolute",
-							pointerEvents: "none",
-							whiteSpace: "pre-wrap",
-							wordWrap: "break-word",
-							color: "transparent",
-							overflow: "hidden",
-							fontFamily: "var(--vscode-font-family)",
-							fontSize: "var(--vscode-editor-font-size)",
-							lineHeight: "var(--vscode-editor-line-height)",
-							borderRadius: 0,
-							borderLeft: isTextAreaFocused ? 0 : undefined,
-							borderRight: isTextAreaFocused ? 0 : undefined,
-							borderTop: isTextAreaFocused ? 0 : undefined,
-							borderBottom: isTextAreaFocused ? 0 : undefined,
-							padding: `5px 28px ${5 + thumbnailsHeight}px 0`,
-						}}
-					/>
-					<DynamicTextArea
-						autoFocus={true}
-						data-testid="chat-input"
-						maxRows={8}
-						minRows={1}
-						onBlur={handleBlur}
-						onChange={(e) => {
-							handleInputChange(e)
-							updateHighlights()
-						}}
-						onFocus={() => {
-							setIsTextAreaFocused(true)
-							onFocusChange?.(true) // Call prop on focus
-						}}
-						onHeightChange={(height) => {
-							if (textAreaBaseHeight === undefined || height < textAreaBaseHeight) {
-								setTextAreaBaseHeight(height)
-							}
-							onHeightChange?.(height)
-						}}
-						onKeyDown={handleKeyDown}
-						onKeyUp={handleKeyUp}
-						onMouseUp={updateCursorPosition}
-						onPaste={handlePaste}
-						onScroll={() => updateHighlights()}
-						onSelect={updateCursorPosition}
-						placeholder={showUnsupportedFileError || showDimensionError ? "" : placeholderText}
-						ref={(el) => {
-							if (typeof ref === "function") {
-								ref(el)
-							} else if (ref) {
-								ref.current = el
-							}
-							textAreaRef.current = el
-						}}
-						style={{
-							width: "100%",
-							boxSizing: "border-box",
-							backgroundColor: "transparent",
-							color: "var(--vscode-input-foreground)",
-							//border: "1px solid var(--vscode-input-border)",
-							borderRadius: 0,
-							fontFamily: "var(--vscode-font-family)",
-							fontSize: "var(--vscode-editor-font-size)",
-							lineHeight: "var(--vscode-editor-line-height)",
-							resize: "none",
-							overflowX: "hidden",
-							overflowY: "scroll",
-							scrollbarWidth: "none",
-							// Since we have maxRows, when text is long enough it starts to overflow the bottom padding, appearing behind the thumbnails. To fix this, we use a transparent border to push the text up instead. (https://stackoverflow.com/questions/42631947/maintaining-a-padding-inside-of-text-area/52538410#52538410)
-							// borderTop: "9px solid transparent",
-							borderLeft: 0,
-							borderRight: 0,
-							borderTop: 0,
-							borderBottom: `${thumbnailsHeight}px solid transparent`,
-							borderColor: "transparent",
-							// borderRight: "54px solid transparent",
-							// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
-							// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
-							// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
-							padding: "5px 28px 5px 20px",
-							cursor: "text",
-							flex: 1,
-							zIndex: 1,
-							outline:
-								isDraggingOver && !showUnsupportedFileError // Only show drag outline if not showing error
-									? "2px dashed var(--vscode-focusBorder)"
-									: "none",
-							outlineOffset: isDraggingOver && !showUnsupportedFileError ? "1px" : "0px", // Add offset for drag-over outline
-							boxShadow: isTextAreaFocused
-								? `inset 0 -1px 0 ${mode === "plan" ? PLAN_MODE_COLOR : "var(--vscode-focusBorder)"}`
-								: "none",
-						}}
-						value={inputValue}
-					/>
-					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
-						<div className="text-xs absolute top-[17px] left-8 right-16 text-(--vscode-input-placeholderForeground)/45 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
-							message
-						</div>
-					)}
-					{(selectedImages.length > 0 || selectedFiles.length > 0) && (
-						<Thumbnails
-							files={selectedFiles}
-							images={selectedImages}
-							onHeightChange={handleThumbnailsHeightChange}
-							setFiles={setSelectedFiles}
-							setImages={setSelectedImages}
+						{showUnsupportedFileError && (
+							<div className="absolute inset-2.5 bg-[rgba(var(--vscode-errorForeground-rgb),0.1)] border-2 border-error rounded-xs flex items-center justify-center z-10 pointer-events-none">
+								<span className="text-error font-bold text-xs">
+									Files other than images are currently disabled
+								</span>
+							</div>
+						)}
+						{showSlashCommandsMenu && (
+							<div ref={slashCommandsMenuContainerRef}>
+								<SlashCommandMenu
+									globalWorkflowToggles={globalWorkflowToggles}
+									localWorkflowToggles={localWorkflowToggles}
+									mcpServers={mcpServers}
+									onMouseDown={handleMenuMouseDown}
+									onSelect={handleSlashCommandsSelect}
+									query={slashCommandsQuery}
+									remoteWorkflows={remoteConfigSettings?.remoteGlobalWorkflows}
+									remoteWorkflowToggles={remoteWorkflowToggles}
+									selectedIndex={selectedSlashCommandsIndex}
+									setSelectedIndex={setSelectedSlashCommandsIndex}
+								/>
+							</div>
+						)}
+
+						{showContextMenu && (
+							<div ref={contextMenuContainerRef}>
+								<ContextMenu
+									dynamicSearchResults={fileSearchResults}
+									isLoading={searchLoading}
+									onMouseDown={handleMenuMouseDown}
+									onSelect={handleMentionSelect}
+									queryItems={queryItems}
+									searchQuery={searchQuery}
+									selectedIndex={selectedMenuIndex}
+									selectedType={selectedType}
+									setSelectedIndex={setSelectedMenuIndex}
+								/>
+							</div>
+						)}
+						<div
+							className={cn(
+								"absolute bottom-2 top-2 whitespace-pre-wrap break-words overflow-hidden bg-transparent",
+								"left-3 right-3",
+							)}
+							ref={highlightLayerRef}
 							style={{
 								position: "absolute",
-								paddingTop: 4,
-								bottom: 12,
-								left: 34,
-								right: 47, // (54 + 9) + 4 extra padding
-								zIndex: 2,
+								pointerEvents: "none",
+								whiteSpace: "pre-wrap",
+								wordWrap: "break-word",
+								color: "transparent",
+								overflow: "hidden",
+								fontFamily: "var(--vscode-font-family)",
+								fontSize: "var(--vscode-editor-font-size)",
+								lineHeight: "var(--vscode-editor-line-height)",
+								borderRadius: 0,
+								borderLeft: isTextAreaFocused ? 0 : undefined,
+								borderRight: isTextAreaFocused ? 0 : undefined,
+								borderTop: isTextAreaFocused ? 0 : undefined,
+								borderBottom: isTextAreaFocused ? 0 : undefined,
+								padding: `5px 28px ${5 + thumbnailsHeight}px 4px`,
 							}}
 						/>
-					)}
+						<DynamicTextArea
+							autoFocus={true}
+							data-testid="chat-input"
+							maxRows={8}
+							minRows={1}
+							onBlur={handleBlur}
+							onChange={(e) => {
+								handleInputChange(e)
+								updateHighlights()
+							}}
+							onFocus={() => {
+								setIsTextAreaFocused(true)
+								onFocusChange?.(true) // Call prop on focus
+							}}
+							onHeightChange={(height) => {
+								if (textAreaBaseHeight === undefined || height < textAreaBaseHeight) {
+									setTextAreaBaseHeight(height)
+								}
+								onHeightChange?.(height)
+							}}
+							onKeyDown={handleKeyDown}
+							onKeyUp={handleKeyUp}
+							onMouseUp={updateCursorPosition}
+							onPaste={handlePaste}
+							onScroll={() => updateHighlights()}
+							onSelect={updateCursorPosition}
+							placeholder={showUnsupportedFileError || showDimensionError ? "" : placeholderText}
+							ref={(el) => {
+								if (typeof ref === "function") {
+									ref(el)
+								} else if (ref) {
+									ref.current = el
+								}
+								textAreaRef.current = el
+							}}
+							style={{
+								width: "100%",
+								boxSizing: "border-box",
+								backgroundColor: "transparent",
+								color: "var(--vscode-input-foreground)",
+								//border: "1px solid var(--vscode-input-border)",
+								borderRadius: 0,
+								fontFamily: "var(--vscode-font-family)",
+								fontSize: "var(--vscode-editor-font-size)",
+								lineHeight: "var(--vscode-editor-line-height)",
+								resize: "none",
+								overflowX: "hidden",
+								overflowY: "scroll",
+								scrollbarWidth: "none",
+								// Since we have maxRows, when text is long enough it starts to overflow the bottom padding, appearing behind the thumbnails. To fix this, we use a transparent border to push the text up instead. (https://stackoverflow.com/questions/42631947/maintaining-a-padding-inside-of-text-area/52538410#52538410)
+								// borderTop: "9px solid transparent",
+								borderLeft: 0,
+								borderRight: 0,
+								borderTop: 0,
+								borderBottom: `${thumbnailsHeight}px solid transparent`,
+								borderColor: "transparent",
+								// borderRight: "54px solid transparent",
+								// borderLeft: "9px solid transparent", // NOTE: react-textarea-autosize doesn't calculate correct height when using borderLeft/borderRight so we need to use horizontal padding instead
+								// Instead of using boxShadow, we use a div with a border to better replicate the behavior when the textarea is focused
+								// boxShadow: "0px 0px 0px 1px var(--vscode-input-border)",
+								padding: "5px 28px 5px 4px",
+								cursor: "text",
+								flex: 1,
+								zIndex: 1,
+								outline:
+									isDraggingOver && !showUnsupportedFileError // Only show drag outline if not showing error
+										? "2px dashed var(--vscode-focusBorder)"
+										: "none",
+								outlineOffset: isDraggingOver && !showUnsupportedFileError ? "1px" : "0px", // Add offset for drag-over outline
+								boxShadow: "none",
+							}}
+							value={inputValue}
+						/>
+						{(selectedImages.length > 0 || selectedFiles.length > 0) && (
+							<Thumbnails
+								files={selectedFiles}
+								images={selectedImages}
+								onHeightChange={handleThumbnailsHeightChange}
+								setFiles={setSelectedFiles}
+								setImages={setSelectedImages}
+								style={{
+									position: "absolute",
+									paddingTop: 4,
+									bottom: 12,
+									left: 34,
+									right: 47, // (54 + 9) + 4 extra padding
+									zIndex: 2,
+								}}
+							/>
+						)}
+					</div>
+					<div
+						className="h-px transition-colors"
+						style={{
+							backgroundColor:
+								mode === "plan" ? PLAN_MODE_COLOR : "var(--color-input-border, var(--vscode-input-border))",
+							opacity: mode === "plan" ? 1 : 0.6,
+						}}
+					/>
+					<ChatToolbar
+						autoApprovalSettings={autoApprovalSettings}
+						mode={mode}
+						modelDisplayName={modelDisplayName}
+						navigateToMcp={() => navigateToMcp()}
+						navigateToSettings={(targetSection) => navigateToSettingsModelPicker({ targetSection })}
+						onContextButtonClick={handleContextButtonClick}
+						onInsertSlashCommand={handleToolbarSlashCommandInsert}
+						onModeToggle={onModeToggle}
+						onSelectFilesAndImages={onSelectFilesAndImages}
+						onSend={() => {
+							setIsTextAreaFocused(false)
+							onSend()
+						}}
+						sendingDisabled={sendingDisabled}
+						shouldDisableFilesAndImages={shouldDisableFilesAndImages}
+					/>
 				</div>
-				<ChatToolbar
-					autoApprovalSettings={autoApprovalSettings}
-					mode={mode}
-					modelDisplayName={modelDisplayName}
-					navigateToMcp={() => navigateToMcp()}
-					navigateToSettings={(targetSection) => navigateToSettingsModelPicker({ targetSection })}
-					onContextButtonClick={handleContextButtonClick}
-					onInsertSlashCommand={handleToolbarSlashCommandInsert}
-					onModeToggle={onModeToggle}
-					onSelectFilesAndImages={onSelectFilesAndImages}
-					onSend={() => {
-						setIsTextAreaFocused(false)
-						onSend()
-					}}
-					sendingDisabled={sendingDisabled}
-					shouldDisableFilesAndImages={shouldDisableFilesAndImages}
-				/>
 			</div>
 		)
 	},
