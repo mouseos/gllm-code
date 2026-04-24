@@ -13,6 +13,7 @@ import type { Controller } from "@/core/controller"
 import { resolveActiveControllerOrOpen, tryGetActiveController } from "./currentController"
 import {
 	doCancelTask,
+	doGetMessages,
 	doGetStatus,
 	doListTasks,
 	doSendMessage,
@@ -79,6 +80,15 @@ export async function dispatchToolLocal(d: DispatchArgs): Promise<ToolReply> {
 			needController(controller)
 			const timeoutMs = typeof d.args.timeoutMs === "number" ? d.args.timeoutMs : undefined
 			return doWaitForCompletion(controller, timeoutMs)
+		}
+
+		case "gllm_get_messages": {
+			const controller = tryGetActiveController()
+			needController(controller)
+			return doGetMessages(controller, {
+				limit: typeof d.args.limit === "number" ? d.args.limit : undefined,
+				includeReasoning: typeof d.args.includeReasoning === "boolean" ? d.args.includeReasoning : undefined,
+			})
 		}
 
 		case "gllm_list_tasks": {

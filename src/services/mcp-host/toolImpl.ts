@@ -89,12 +89,35 @@ export async function doSendMessage(controller: Controller, args: SendMessageArg
 	return reply({ ok: true, taskId: task.taskId, matchedAsk: ask ?? null })
 }
 
+/**
+ * Extract the text payload from a completion_result ask. The ask's `text`
+ * itself is usually empty — the real assistant reply body lives either in
+ * the ask's `text` (sometimes populated) or in the preceding `say: text`
+ * message. We prefer the ask if it carries a body, otherwise walk backwards
+ * for the last non-empty `say: text`.
+ */
+function extractAssistantReply(
+	msgs: Array<{ ask?: string; say?: string; text?: string; reasoning?: string; ts: number }>,
+): { text: string; ts: number } | undefined {
+	for (let i = msgs.length - 1; i >= 0; i--) {
+		const m = msgs[i]
+		if (m.say === "text" && typeof m.text === "string" && m.text.trim().length > 0) {
+			return { text: m.text, ts: m.ts }
+		}
+		if (m.ask === "completion_result" && typeof m.text === "string" && m.text.trim().length > 0) {
+			return { text: m.text, ts: m.ts }
+		}
+	}
+	return undefined
+}
+
 export function doGetStatus(controller: Controller | undefined): ToolReply {
 	if (!controller) return reply({ hasTask: false, reason: "no_active_webview" })
 	const task = controller.task
 	if (!task) return reply({ hasTask: false })
 	const msgs = task.messageStateHandler?.getClineMessages?.() ?? []
 	const last = msgs[msgs.length - 1]
+	const assistantReply = extractAssistantReply(msgs)
 	return reply({
 		hasTask: true,
 		taskId: task.taskId,
@@ -105,6 +128,43 @@ export function doGetStatus(controller: Controller | undefined): ToolReply {
 		lastSay: last?.say ?? null,
 		lastText: last?.text ?? null,
 		lastTs: last?.ts ?? null,
+		assistantText: assistantReply?.text ?? null,
+		assistantTextTs: assistantReply?.ts ?? null,
+	})
+}
+
+export interface GetMessagesArgs {
+	limit?: number
+	/** When true, include reasoning deltas (thinking stream) in the output. */
+	includeReasoning?: boolean
+}
+
+export function doGetMessages(controller: Controller, args: GetMessagesArgs): ToolReply {
+	const task = controller.task
+	if (!task) return reply({ hasTask: false })
+	const msgs = task.messageStateHandler?.getClineMessages?.() ?? []
+	const filtered = msgs.filter((m) => {
+		if (m.say === "reasoning" && !args.includeReasoning) return false
+		// Skip internal API chatter that would swamp the reply; keep user/
+		// assistant visible message types only by default.
+		if (m.say === "api_req_started" || m.say === "api_req_finished") return false
+		return true
+	})
+	const limit = Math.max(1, Math.min(args.limit ?? 50, 500))
+	const tail = filtered.slice(-limit)
+	return reply({
+		hasTask: true,
+		taskId: task.taskId,
+		totalCount: filtered.length,
+		returned: tail.length,
+		messages: tail.map((m) => ({
+			ts: m.ts,
+			type: m.type,
+			ask: m.ask ?? null,
+			say: m.say ?? null,
+			text: m.text ?? null,
+			reasoning: m.reasoning ?? null,
+		})),
 	})
 }
 

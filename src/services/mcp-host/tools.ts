@@ -134,6 +134,20 @@ export function registerGllmTools(server: McpServer, ctx: ToolContext): void {
 	)
 
 	server.registerTool(
+		"gllm_get_messages",
+		{
+			description:
+				"Return recent messages from the active task (user prompts, assistant text, attempt_completion). By default hides reasoning deltas and API-request noise.",
+			inputSchema: {
+				limit: z.number().int().min(1).max(500).optional().describe("Max messages to return from the tail (default 50)."),
+				includeReasoning: z.boolean().optional().describe("Include `say: reasoning` thinking deltas. Default false."),
+				...workspaceArg,
+			},
+		},
+		async (args) => run(ctx, "gllm_get_messages", args, { approvalRequired: false }),
+	)
+
+	server.registerTool(
 		"gllm_wait_for_completion",
 		{
 			description: "Block until the active task stops streaming or the task is cleared. Returns the final status snapshot.",
