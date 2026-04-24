@@ -18,7 +18,6 @@ import * as http from "node:http"
 import { AddressInfo } from "node:net"
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js"
 import { z } from "zod"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
@@ -27,6 +26,7 @@ import { Logger } from "@/shared/services/Logger"
 import { approvalStoreFor } from "./ApprovalStore"
 import { tryGetActiveController } from "./currentController"
 import { localForwarder } from "./forwarding"
+import { McpSessionManager } from "./mcpSessionManager"
 import { getPreferredPort, listenWithPreferred, rememberPort } from "./portAllocator"
 import { RegistryEntry, register, unregister } from "./registry"
 import { dispatchToolLocal } from "./toolDispatch"
@@ -169,22 +169,18 @@ export async function startMcpHostServer(options: McpHostServerOptions): Promise
 	const windowId = `win-${process.pid}-${randomUUID().slice(0, 8)}`
 	const token = newToken()
 
-	// Captured client identity from the initialize handshake. Falls back to
-	// "unknown-mcp-client" if a tool is invoked before initialize resolves
-	// (shouldn't happen with compliant clients but guard anyway).
-	let clientName = "unknown-mcp-client"
-	const mcpServer = buildMcpServer(options.version ?? "0.0.0", () => clientName, options.getRequireApproval)
-	mcpServer.server.oninitialized = () => {
-		const info = mcpServer.server.getClientVersion()
-		if (info?.name) clientName = info.name
-	}
-
-	const transport = new StreamableHTTPServerTransport({
-		sessionIdGenerator: () => randomUUID(),
-		enableJsonResponse: false,
+	// One MCP server + transport per session. See mcpSessionManager.ts for
+	// why — the SDK rejects re-initialize on a shared, already-initialised
+	// transport.
+	const sessions = new McpSessionManager(() => {
+		let clientName = "unknown-mcp-client"
+		const s = buildMcpServer(options.version ?? "0.0.0", () => clientName, options.getRequireApproval)
+		s.server.oninitialized = () => {
+			const info = s.server.getClientVersion()
+			if (info?.name) clientName = info.name
+		}
+		return s
 	})
-
-	await mcpServer.connect(transport)
 
 	const httpServer = http.createServer(async (req, res) => {
 		try {
@@ -261,7 +257,7 @@ export async function startMcpHostServer(options: McpHostServerOptions): Promise
 					return
 				}
 			}
-			await transport.handleRequest(req, res, body)
+			await sessions.handle(req, res, body)
 		} catch (err) {
 			Logger.error(`[McpHost] request error: ${String(err)}`)
 			if (!res.headersSent) {
@@ -295,7 +291,7 @@ export async function startMcpHostServer(options: McpHostServerOptions): Promise
 		async stop() {
 			await unregister(windowId).catch((err) => Logger.warn(`[McpHost] unregister failed: ${err}`))
 			await new Promise<void>((resolve) => httpServer.close(() => resolve()))
-			await mcpServer.close().catch((err) => Logger.warn(`[McpHost] mcpServer.close failed: ${err}`))
+			await sessions.closeAll()
 		},
 	}
 }

@@ -11,12 +11,10 @@
  * the settings UI.
  */
 
-import { randomUUID } from "node:crypto"
 import * as http from "node:http"
 import { AddressInfo } from "node:net"
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -26,6 +24,7 @@ import { type BrokerCreds, updatePreferredPort } from "./brokerCreds"
 import { releaseLock, tryClaim } from "./brokerElection"
 import { tryGetActiveController } from "./currentController"
 import { makeBrokerForwarder } from "./forwarding"
+import { McpSessionManager } from "./mcpSessionManager"
 import { listenWithPreferred } from "./portAllocator"
 import { registerGllmTools, ToolContext } from "./tools"
 
@@ -88,14 +87,24 @@ async function readBody(req: http.IncomingMessage): Promise<unknown> {
 	})
 }
 
-function buildBrokerMcp(opts: BrokerOptions, getClientName: () => string): McpServer {
-	const server = new McpServer({ name: "gllm-code-broker", version: opts.version }, { capabilities: { tools: {} } })
+function buildBrokerMcp(opts: BrokerOptions): McpServer {
+	// Per-session client identity. Captured from the MCP `initialize`
+	// message; defaults to "unknown-mcp-client" for tool calls that arrive
+	// before the handshake completes (shouldn't happen with compliant clients
+	// but guard anyway).
+	let clientName = "unknown-mcp-client"
 
-	const askUserForApproval = async (clientName: string): Promise<"allow" | "deny"> => {
+	const server = new McpServer({ name: "gllm-code-broker", version: opts.version }, { capabilities: { tools: {} } })
+	server.server.oninitialized = () => {
+		const info = server.server.getClientVersion()
+		if (info?.name) clientName = info.name
+	}
+
+	const askUserForApproval = async (who: string): Promise<"allow" | "deny"> => {
 		try {
 			const res = await HostProvider.window.showMessage({
 				type: ShowMessageType.INFORMATION,
-				message: `An MCP client identified as "${clientName}" is connecting to GLLM Code. It will be able to start new tasks, send follow-up messages, read your task history, and cancel running tasks across every open gllm-code window. Allow this client?`,
+				message: `An MCP client identified as "${who}" is connecting to GLLM Code. It will be able to start new tasks, send follow-up messages, read your task history, and cancel running tasks across every open gllm-code window. Allow this client?`,
 				options: { modal: true, items: ["Allow", "Deny"] },
 			})
 			return res.selectedOption === "Allow" ? "allow" : "deny"
@@ -106,7 +115,7 @@ function buildBrokerMcp(opts: BrokerOptions, getClientName: () => string): McpSe
 	}
 
 	const ctx: ToolContext = {
-		getClientName,
+		getClientName: () => clientName,
 		// ApprovalStore is backed by globalState, which is shared across
 		// windows, so reading it through the leader's controller is fine.
 		getApprovalStore: () => approvalStoreFor(tryGetActiveController()),
@@ -126,18 +135,7 @@ function buildBrokerMcp(opts: BrokerOptions, getClientName: () => string): McpSe
  * the new preferred) if the preferred port is already in use.
  */
 export async function startBroker(opts: BrokerOptions): Promise<RunningBroker> {
-	let clientName = "unknown-mcp-client"
-	const mcpServer = buildBrokerMcp(opts, () => clientName)
-	mcpServer.server.oninitialized = () => {
-		const info = mcpServer.server.getClientVersion()
-		if (info?.name) clientName = info.name
-	}
-
-	const transport = new StreamableHTTPServerTransport({
-		sessionIdGenerator: () => randomUUID(),
-		enableJsonResponse: false,
-	})
-	await mcpServer.connect(transport)
+	const sessions = new McpSessionManager(() => buildBrokerMcp(opts))
 
 	const token = opts.creds.token
 	const httpServer = http.createServer(async (req, res) => {
@@ -178,7 +176,7 @@ export async function startBroker(opts: BrokerOptions): Promise<RunningBroker> {
 					return
 				}
 			}
-			await transport.handleRequest(req, res, body)
+			await sessions.handle(req, res, body)
 		} catch (err) {
 			Logger.error(`[McpBroker] request error: ${String(err)}`)
 			if (!res.headersSent) {
@@ -201,7 +199,7 @@ export async function startBroker(opts: BrokerOptions): Promise<RunningBroker> {
 	if (!claimed) {
 		// Lost the race between probe and claim. Tear down quietly.
 		await new Promise<void>((resolve) => httpServer.close(() => resolve()))
-		await mcpServer.close().catch(() => {})
+		await sessions.closeAll()
 		throw new Error("broker_claim_lost_race")
 	}
 
@@ -217,10 +215,10 @@ export async function startBroker(opts: BrokerOptions): Promise<RunningBroker> {
 
 	return {
 		port: address.port,
-		async stop() {
+		async stop(): Promise<void> {
 			await releaseLock(opts.leaderWindowId).catch((err) => Logger.warn(`[McpBroker] releaseLock failed: ${String(err)}`))
 			await new Promise<void>((resolve) => httpServer.close(() => resolve()))
-			await mcpServer.close().catch((err) => Logger.warn(`[McpBroker] close failed: ${String(err)}`))
+			await sessions.closeAll()
 		},
 	}
 }
