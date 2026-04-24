@@ -5022,9 +5022,9 @@ export const geminiCliModels = {
 // ─── Antigravity (Daily Cloud Code) ─────────────────────────────────────────
 
 export type AntigravityModelId = keyof typeof antigravityModels
-export const antigravityDefaultModelId: AntigravityModelId = "gemini-3-pro-high"
+export const antigravityDefaultModelId: AntigravityModelId = "gemini-3.1-pro-high"
 export const antigravityModels = {
-	"gemini-3-pro-high": {
+	"gemini-3.1-pro-high": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
@@ -5032,7 +5032,7 @@ export const antigravityModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"gemini-3-pro-low": {
+	"gemini-3.1-pro-low": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,
@@ -5040,7 +5040,7 @@ export const antigravityModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 	},
-	"gemini-3-flash": {
+	"gemini-3.1-flash": {
 		maxTokens: 65536,
 		contextWindow: 1_048_576,
 		supportsImages: true,

@@ -68,9 +68,9 @@ const GEMINI_CLI_MODEL_PREFERENCE = [
 	"gemini-2.5-flash-lite",
 ]
 const ANTIGRAVITY_MODEL_PREFERENCE = [
-	"gemini-3-pro-high",
-	"gemini-3-pro-low",
-	"gemini-3-flash",
+	"gemini-3.1-pro-high",
+	"gemini-3.1-pro-low",
+	"gemini-3.1-flash",
 	"gemini-2.5-pro",
 	"gemini-2.5-flash",
 ]
@@ -647,7 +647,7 @@ export class GllmAccountManager {
 		const id = `${provider}-${randomUUID().slice(0, 8)}`
 		const isMain = accounts.length === 0 || !accounts.some((a) => a.isMain)
 
-		const defaultModel = provider === "gemini-cli" ? "gemini-3.1-pro-preview" : "gemini-3-pro-high"
+		const defaultModel = provider === "gemini-cli" ? "gemini-3.1-pro-preview" : "gemini-3.1-pro-high"
 
 		const newAccount: GllmAccount = {
 			id,
@@ -852,7 +852,7 @@ function pickBestAvailableModel(provider: GllmProviderType, currentModel: string
 	return (
 		availableModels[0] ??
 		currentModel ??
-		(provider === "gemini" ? "gemini-2.5-pro" : provider === "gemini-cli" ? "gemini-3.1-pro-preview" : "gemini-3-pro-high")
+		(provider === "gemini" ? "gemini-2.5-pro" : provider === "gemini-cli" ? "gemini-3.1-pro-preview" : "gemini-3.1-pro-high")
 	)
 }
 

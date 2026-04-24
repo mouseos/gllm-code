@@ -29,9 +29,9 @@ const GEMINI_CLI_FALLBACK_MODELS = [
 	"gemini-2.5-flash-lite",
 ]
 const ANTIGRAVITY_FALLBACK_MODELS = [
-	"gemini-3-pro-high",
-	"gemini-3-pro-low",
-	"gemini-3-flash",
+	"gemini-3.1-pro-high",
+	"gemini-3.1-pro-low",
+	"gemini-3.1-flash",
 	"gemini-2.5-pro",
 	"gemini-2.5-flash",
 ]
@@ -100,14 +100,12 @@ export class GllmAutoHandler implements ApiHandler {
 	}
 
 	private getCandidates(): Candidate[] {
-		return this.accountManager
-			.getAccountsByPriority()
-			.flatMap((account) =>
-				resolveModelsForAccount(account, this.options.apiModelId ?? account.model).map((modelId) => ({
-					account,
-					modelId,
-				})),
-			)
+		return this.accountManager.getAccountsByPriority().flatMap((account) =>
+			resolveModelsForAccount(account, this.options.apiModelId ?? account.model).map((modelId) => ({
+				account,
+				modelId,
+			})),
+		)
 	}
 
 	private createCandidateHandler(candidate: Candidate): ApiHandler {
@@ -195,7 +193,9 @@ function getProviderAutoModels(account: GllmAccount, tier: "pro" | "flash"): str
 	}
 	if (account.provider === "antigravity") {
 		const preferred =
-			tier === "pro" ? ["gemini-3-pro-high", "gemini-3-pro-low", "gemini-2.5-pro"] : ["gemini-3-flash", "gemini-2.5-flash"]
+			tier === "pro"
+				? ["gemini-3.1-pro-high", "gemini-3.1-pro-low", "gemini-2.5-pro"]
+				: ["gemini-3.1-flash", "gemini-2.5-flash"]
 		const available = accountAutoModels(account)
 		const matchingPreferred = preferred.filter((modelId) => available.includes(modelId))
 		return available.length > 0 ? (matchingPreferred.length > 0 ? matchingPreferred : available) : preferred
@@ -209,5 +209,27 @@ function accountAutoModels(account: GllmAccount): string[] {
 
 function isRetryableQuotaError(error: Error): boolean {
 	const message = error.message.toLowerCase()
-	return message.includes("429") || message.includes("quota") || message.includes("rate limit")
+	// Quota / rate limiting (original cases)
+	if (message.includes("429") || message.includes("quota") || message.includes("rate limit")) {
+		return true
+	}
+	// Model retired / unavailable / unknown — skip this candidate and try the next one.
+	// Example: "Gemini 3 Pro is no longer available. Please switch to Gemini 3.1 Pro..."
+	if (
+		message.includes("no longer available") ||
+		message.includes("not available") ||
+		message.includes("is not supported") ||
+		message.includes("unsupported model") ||
+		message.includes("unknown model") ||
+		message.includes("model not found") ||
+		message.includes("please switch to") ||
+		message.includes("deprecated")
+	) {
+		return true
+	}
+	// 404 on the model endpoint also indicates the model is gone.
+	if (message.includes("404") && (message.includes("model") || message.includes("gemini"))) {
+		return true
+	}
+	return false
 }
