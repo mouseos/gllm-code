@@ -143,7 +143,9 @@ export class AntigravityHandler implements ApiHandler {
 				...(toolDeclarations
 					? {
 							tools: toolDeclarations,
-							toolConfig: { functionCallingConfig: { mode: "VALIDATED" } },
+							// Force a tool call every turn, matching gemini / gemini-cli behavior.
+							// "VALIDATED" lets the model decide and produces empty responses on some turns.
+							toolConfig: { functionCallingConfig: { mode: "ANY" } },
 						}
 					: {}),
 			},
@@ -190,7 +192,10 @@ export class AntigravityHandler implements ApiHandler {
 
 					const parts = resp.candidates?.[0]?.content?.parts ?? []
 					for (const part of parts) {
-						if (part.thought) continue
+						if (part.thought && part.text) {
+							yield { type: "reasoning", reasoning: part.text }
+							continue
+						}
 						if (part.text !== undefined && part.text !== "") {
 							yield { type: "text", text: part.text }
 						}
