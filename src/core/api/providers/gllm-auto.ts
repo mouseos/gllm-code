@@ -223,6 +223,8 @@ function isRetryableQuotaError(error: Error): boolean {
 		message.includes("unknown model") ||
 		message.includes("model not found") ||
 		message.includes("please switch to") ||
+		message.includes("please upgrade") ||
+		message.includes("upgrade to the latest") ||
 		message.includes("deprecated")
 	) {
 		return true

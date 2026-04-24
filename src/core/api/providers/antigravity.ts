@@ -251,8 +251,11 @@ function generateSessionId(messages: Content[]): string {
 	return `-${(Math.abs(hash) * 1000000000000).toString()}`
 }
 
+// NOTE: Antigravity gates certain models (e.g. Gemini 3.1 Pro) on the client
+// user-agent version. Bump this when new models arrive and the server rejects
+// us with "not available on this version".
 function getAntigravityUserAgent(): string {
-	const version = "1.15.8"
+	const version = "1.20.0"
 	const platform = process.platform === "darwin" ? "macos" : process.platform
 	return `antigravity/${version} ${platform}/${process.arch}`
 }
