@@ -305,8 +305,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		if (mcpServerChanged) {
 			// Reconcile the MCP host runtime state with the new settings without
-			// forcing a window reload.
-			void reconcileMcpHostFromSettings()
+			// forcing a window reload. Wait for it to finish so the subsequent
+			// state push reflects the runtime status (port/token/running).
+			try {
+				await reconcileMcpHostFromSettings()
+			} catch (err) {
+				Logger.error("reconcileMcpHostFromSettings failed:", err)
+			}
+			await controller.postStateToWebview()
 		}
 
 		return Empty.create()
