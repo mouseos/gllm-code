@@ -26,6 +26,7 @@ import { Logger } from "@/shared/services/Logger"
 
 import { approvalStoreFor } from "./ApprovalStore"
 import { tryGetActiveController } from "./currentController"
+import { getPreferredPort, listenWithPreferred, rememberPort } from "./portAllocator"
 import { RegistryEntry, register, unregister } from "./registry"
 import { registerGllmTools, ToolContext } from "./tools"
 
@@ -215,13 +216,8 @@ export async function startMcpHostServer(options: McpHostServerOptions): Promise
 		}
 	})
 
-	await new Promise<void>((resolve, reject) => {
-		httpServer.once("error", reject)
-		httpServer.listen(0, BIND_HOST, () => {
-			httpServer.off("error", reject)
-			resolve()
-		})
-	})
+	const preferredPort = await getPreferredPort(options.workspaceRoot)
+	await listenWithPreferred(httpServer, BIND_HOST, preferredPort)
 
 	const address = httpServer.address() as AddressInfo
 	const entry: RegistryEntry = {
@@ -233,6 +229,7 @@ export async function startMcpHostServer(options: McpHostServerOptions): Promise
 		startedAt: new Date().toISOString(),
 		version: options.version,
 	}
+	await rememberPort(options.workspaceRoot, entry.port)
 	await register(entry)
 	Logger.info(`[McpHost] listening on ${BIND_HOST}:${entry.port} (workspace=${entry.workspaceRoot})`)
 
