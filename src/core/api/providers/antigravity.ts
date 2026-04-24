@@ -249,15 +249,28 @@ export class AntigravityHandler implements ApiHandler {
 							yield { type: "text", text: part.text }
 						}
 						if (part.functionCall) {
-							yield {
-								type: "tool_calls",
-								tool_call: {
-									call_id: part.functionCall.id || `call_${randomUUID().replace(/-/g, "").slice(0, 24)}`,
-									function: {
-										name: part.functionCall.name,
-										arguments: part.functionCall.args,
+							const fn = part.functionCall
+							const args = fn.args ?? {}
+							// Skip empty-arg function calls (matches gemini.ts behavior);
+							// the downstream parser treats tool calls without args as
+							// "no tool used" and forces a retry loop.
+							const hasArgs = Object.values(args).some((v) => v !== undefined && v !== null && v !== "")
+							if (hasArgs || Object.keys(args).length === 0) {
+								const toolCallId = fn.id?.trim() || `call_${randomUUID().replace(/-/g, "").slice(0, 24)}`
+								yield {
+									type: "tool_calls",
+									id: resp.responseId,
+									tool_call: {
+										call_id: toolCallId,
+										function: {
+											id: toolCallId,
+											name: fn.name,
+											// Downstream expects a JSON-stringified argument blob,
+											// not a raw object.
+											arguments: JSON.stringify(args),
+										},
 									},
-								},
+								}
 							}
 						}
 					}
