@@ -64,13 +64,13 @@ export default function McpServerSettingsSection({
 
 	const connectCommand = useMemo(() => {
 		if (!running || !connectUrl) return ""
-		// Claude Code ≥ 2.x moved the URL to a positional argument after the
-		// name. Older `--url` flag is no longer recognised.
-		return [
-			"claude mcp add --transport http \\",
-			`  --header "Authorization: Bearer ${token}" \\`,
-			`  gllm-code ${connectUrl}`,
-		].join("\n")
+		// Claude Code ≥ 2.x: `claude mcp add [options] <name> <url> [args...]`
+		// and `--header` is variadic — placing it BEFORE the positional name
+		// makes the parser swallow the name as another header value and fail
+		// with "missing required argument 'name'". So flags go at the end.
+		return [`claude mcp add --transport http gllm-code ${connectUrl} \\`, `  --header "Authorization: Bearer ${token}"`].join(
+			"\n",
+		)
 	}, [running, connectUrl, token])
 
 	return (
