@@ -155,6 +155,8 @@ export class ClineToolSet {
 			case "bedrock":
 				return toolSpecInputSchema
 			case "gemini":
+			case "gemini-cli":
+			case "antigravity":
 				return toolSpecFunctionDeclarations
 			case "vertex":
 				if (modelId?.includes("gemini")) {

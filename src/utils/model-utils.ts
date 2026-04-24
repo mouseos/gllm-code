@@ -13,6 +13,8 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 		"anthropic",
 		"bedrock",
 		"gemini",
+		"gemini-cli",
+		"antigravity",
 		"vertex",
 		"openrouter",
 		"openai",
