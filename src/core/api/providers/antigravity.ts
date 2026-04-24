@@ -16,12 +16,15 @@ const ANTIGRAVITY_BASE_URLS = [
 ]
 const ANTIGRAVITY_USER_AGENT = getAntigravityUserAgent()
 
+// CIVIC_INTEGRITY is intentionally omitted: even when listed in the backend's
+// advertised "allowed" enum, some flash/flash-lite variants 400 on it with
+// `safety_settings[4]: element predicate failed`. Four categories cover the
+// actual OFF-safety intent and are universally accepted.
 const ANTIGRAVITY_SAFETY_SETTINGS = [
 	{ category: "HARM_CATEGORY_HARASSMENT", threshold: "OFF" },
 	{ category: "HARM_CATEGORY_HATE_SPEECH", threshold: "OFF" },
 	{ category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "OFF" },
 	{ category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "OFF" },
-	{ category: "HARM_CATEGORY_CIVIC_INTEGRITY", threshold: "OFF" },
 ]
 
 interface AntigravityHandlerOptions extends CommonApiHandlerOptions {
